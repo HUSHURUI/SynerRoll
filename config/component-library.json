@@ -1,0 +1,4119 @@
+{
+  "version": "1.0.0",
+  "description": "Unified component library schema — business parameters shared between frontend and backend",
+  "components": {
+    "WT": {
+      "label": "风机",
+      "description": "风电机组",
+      "category": "power",
+      "group": "power-converter",
+      "tags": [
+        "转换设备",
+        "可再生"
+      ],
+      "boundaryKey": [
+        "wind_speed",
+        "factor",
+        "power"
+      ],
+      "ports": [
+        {
+          "id": "power-out",
+          "side": "right",
+          "direction": "out",
+          "medium": "electric",
+          "offset": 50,
+          "label": "功率输出"
+        }
+      ],
+      "layerStatuses": {
+        "1": [
+          "stand_alone"
+        ],
+        "2": [
+          "stand_alone"
+        ],
+        "3": [
+          "stand_alone"
+        ],
+        "4": [
+          "stand_alone"
+        ],
+        "5": [
+          "stand_alone"
+        ]
+      },
+      "commonTechFields": [
+        {
+          "key": "capacity",
+          "label": "额定容量",
+          "type": "number",
+          "defaultValue": 300000.0,
+          "unit": "kW",
+          "step": 1000.0,
+          "min": 0.0,
+          "required": true,
+          "planning": {
+            "optimizable": true,
+            "defaultLowerFactor": 0.5,
+            "defaultUpperFactor": 2.0
+          }
+        },
+        {
+          "key": "ramp",
+          "label": "主动有功调度变化率",
+          "type": "number",
+          "defaultValue": 1.0,
+          "unit": "%/min",
+          "step": 0.05,
+          "min": 0.0
+        },
+        {
+          "key": "efficiency",
+          "label": "效率",
+          "type": "number",
+          "defaultValue": 0.95,
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "predict_algorithm",
+          "label": "预测算法",
+          "type": "select",
+          "defaultValue": "None",
+          "options": [
+            {
+              "label": "无",
+              "value": "None"
+            },
+            {
+              "label": "风电预测",
+              "value": "wind"
+            }
+          ]
+        },
+        {
+          "key": "v_in",
+          "label": "切入风速",
+          "type": "number",
+          "defaultValue": 3.0,
+          "unit": "m/s",
+          "step": 0.1
+        },
+        {
+          "key": "v_r",
+          "label": "额定风速",
+          "type": "number",
+          "defaultValue": 9.5,
+          "unit": "m/s",
+          "step": 0.1
+        },
+        {
+          "key": "v_out",
+          "label": "切出风速",
+          "type": "number",
+          "defaultValue": 19.5,
+          "unit": "m/s",
+          "step": 0.1
+        },
+        {
+          "key": "h1",
+          "label": "参考高度",
+          "type": "number",
+          "defaultValue": 10.0,
+          "unit": "m",
+          "step": 1.0
+        },
+        {
+          "key": "h2",
+          "label": "轮毂高度",
+          "type": "number",
+          "defaultValue": 135.0,
+          "unit": "m",
+          "step": 1.0
+        },
+        {
+          "key": "α",
+          "label": "风切变指数",
+          "type": "number",
+          "defaultValue": 0.143,
+          "step": 0.001,
+          "max": 1.0
+        },
+        {
+          "key": "η_t",
+          "label": "传输效率",
+          "type": "number",
+          "defaultValue": 0.96,
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "η_g",
+          "label": "发电机效率",
+          "type": "number",
+          "defaultValue": 0.93,
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "η_inverter",
+          "label": "逆变器效率",
+          "type": "number",
+          "defaultValue": 0.96,
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        }
+      ],
+      "commonEconomicFields": [
+        {
+          "key": "om_cost",
+          "label": "运维成本",
+          "type": "number",
+          "defaultValue": 0.1,
+          "unit": "元/kWh",
+          "step": 0.01
+        },
+        {
+          "key": "cut_cost",
+          "label": "弃风成本",
+          "type": "number",
+          "defaultValue": 0.9,
+          "unit": "元/kWh",
+          "step": 0.1
+        },
+        {
+          "key": "initial_cost",
+          "label": "初始投资",
+          "type": "number",
+          "defaultValue": 4100.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "replace_cost",
+          "label": "更换成本",
+          "type": "number",
+          "defaultValue": 4100.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "material_cost",
+          "label": "材料成本",
+          "type": "number",
+          "defaultValue": 15.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manufacturing_cost",
+          "label": "其他制造成本",
+          "type": "number",
+          "defaultValue": 5.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manage_cost",
+          "label": "其他管理成本",
+          "type": "number",
+          "defaultValue": 10.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "repair_cost",
+          "label": "维修费率",
+          "type": "number",
+          "defaultValue": 0.01,
+          "step": 0.01,
+          "max": 1.0
+        },
+        {
+          "key": "life_year",
+          "label": "寿命",
+          "type": "number",
+          "defaultValue": 20.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "depreciation_year",
+          "label": "折旧年限",
+          "type": "number",
+          "defaultValue": 20.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "staff_number",
+          "label": "人员数量",
+          "type": "number",
+          "defaultValue": 50.0,
+          "unit": "人",
+          "step": 1.0
+        }
+      ],
+      "layerTechFields": [
+        {
+          "key": "max_cut_ratio",
+          "label": "最大弃风比例",
+          "type": "number",
+          "defaultValue": 1.0,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        }
+      ],
+      "layerEconomicFields": [],
+      "constraintFields": [
+        {
+          "key": "curtailment_constraint_on",
+          "label": "启用弃风约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "ramp_constraint_on",
+          "label": "启用主动有功变化率约束",
+          "type": "boolean",
+          "defaultValue": false
+        }
+      ],
+      "objectiveFields": [
+        {
+          "key": "om_objective_on",
+          "label": "运维成本",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "cut_objective_on",
+          "label": "弃风成本",
+          "type": "boolean",
+          "defaultValue": true
+        }
+      ]
+    },
+    "PV": {
+      "label": "光伏",
+      "description": "光伏机组",
+      "category": "power",
+      "group": "power-converter",
+      "tags": [
+        "转换设备",
+        "可再生"
+      ],
+      "boundaryKey": [
+        "irradiance",
+        "temperature",
+        "factor",
+        "power"
+      ],
+      "ports": [
+        {
+          "id": "power-out",
+          "side": "right",
+          "direction": "out",
+          "medium": "electric",
+          "offset": 50,
+          "label": "功率输出"
+        }
+      ],
+      "layerStatuses": {
+        "1": [
+          "stand_alone"
+        ],
+        "2": [
+          "stand_alone"
+        ],
+        "3": [
+          "stand_alone"
+        ],
+        "4": [
+          "stand_alone"
+        ],
+        "5": [
+          "stand_alone"
+        ]
+      },
+      "commonTechFields": [
+        {
+          "key": "capacity",
+          "label": "额定容量",
+          "type": "number",
+          "defaultValue": 300000.0,
+          "unit": "kW",
+          "step": 1000.0,
+          "min": 0.0,
+          "required": true,
+          "planning": {
+            "optimizable": true,
+            "defaultLowerFactor": 0.5,
+            "defaultUpperFactor": 2.0
+          }
+        },
+        {
+          "key": "ramp",
+          "label": "主动有功调度变化率",
+          "type": "number",
+          "defaultValue": 1.0,
+          "unit": "%/min",
+          "step": 0.05,
+          "min": 0.0
+        },
+        {
+          "key": "efficiency",
+          "label": "效率",
+          "type": "number",
+          "defaultValue": 0.95,
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "predict_algorithm",
+          "label": "预测算法",
+          "type": "select",
+          "defaultValue": "None",
+          "options": [
+            {
+              "label": "无",
+              "value": "None"
+            },
+            {
+              "label": "风电预测",
+              "value": "wind"
+            }
+          ]
+        }
+      ],
+      "commonEconomicFields": [
+        {
+          "key": "om_cost",
+          "label": "运维成本",
+          "type": "number",
+          "defaultValue": 0.1,
+          "unit": "元/kWh",
+          "step": 0.01
+        },
+        {
+          "key": "cut_cost",
+          "label": "弃风光成本",
+          "type": "number",
+          "defaultValue": 0.9,
+          "unit": "元/kWh",
+          "step": 0.1
+        },
+        {
+          "key": "initial_cost",
+          "label": "初始投资",
+          "type": "number",
+          "defaultValue": 4100.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "replace_cost",
+          "label": "更换成本",
+          "type": "number",
+          "defaultValue": 4100.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "material_cost",
+          "label": "材料成本",
+          "type": "number",
+          "defaultValue": 15.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manufacturing_cost",
+          "label": "其他制造成本",
+          "type": "number",
+          "defaultValue": 5.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manage_cost",
+          "label": "其他管理成本",
+          "type": "number",
+          "defaultValue": 10.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "repair_cost",
+          "label": "维修费率",
+          "type": "number",
+          "defaultValue": 0.01,
+          "step": 0.01,
+          "max": 1.0
+        },
+        {
+          "key": "life_year",
+          "label": "寿命",
+          "type": "number",
+          "defaultValue": 20.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "depreciation_year",
+          "label": "折旧年限",
+          "type": "number",
+          "defaultValue": 20.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "staff_number",
+          "label": "人员数量",
+          "type": "number",
+          "defaultValue": 50.0,
+          "unit": "人",
+          "step": 1.0
+        }
+      ],
+      "layerTechFields": [
+        {
+          "key": "max_cut_ratio",
+          "label": "最大弃光比例",
+          "type": "number",
+          "defaultValue": 1.0,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        }
+      ],
+      "layerEconomicFields": [],
+      "constraintFields": [
+        {
+          "key": "curtailment_constraint_on",
+          "label": "启用弃光约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "ramp_constraint_on",
+          "label": "启用主动有功变化率约束",
+          "type": "boolean",
+          "defaultValue": false
+        }
+      ],
+      "objectiveFields": [
+        {
+          "key": "om_objective_on",
+          "label": "运维成本",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "cut_objective_on",
+          "label": "弃光成本",
+          "type": "boolean",
+          "defaultValue": true
+        }
+      ]
+    },
+    "CP": {
+      "backendKey": "CP",
+      "label": "燃煤机组",
+      "description": "燃煤发电机组",
+      "category": "power",
+      "group": "power-converter",
+      "tags": [
+        "转换设备",
+        "火电"
+      ],
+      "boundaryKey": [
+        "other"
+      ],
+      "ports": [
+        {
+          "id": "power-out",
+          "side": "right",
+          "direction": "out",
+          "medium": "electric",
+          "offset": 50,
+          "label": "功率输出"
+        }
+      ],
+      "layerStatuses": {
+        "1": [
+          "stand_alone",
+          "disabled"
+        ],
+        "2": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "3": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "4": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "5": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ]
+      },
+      "commonTechFields": [
+        {
+          "key": "capacity",
+          "label": "装机容量",
+          "type": "number",
+          "defaultValue": 350000.0,
+          "unit": "kW",
+          "step": 1000.0,
+          "min": 0.0,
+          "required": true,
+          "planning": {
+            "optimizable": true,
+            "defaultLowerFactor": 0.5,
+            "defaultUpperFactor": 2.0
+          }
+        },
+        {
+          "key": "η",
+          "label": "发电效率",
+          "type": "number",
+          "defaultValue": 0.5,
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "ramp",
+          "label": "爬坡率",
+          "type": "number",
+          "defaultValue": 0.5,
+          "unit": "%/min",
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "min",
+          "label": "最小出力比例",
+          "type": "number",
+          "defaultValue": 0.3,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "T_min_on",
+          "label": "最小开机时长",
+          "type": "number",
+          "defaultValue": 10.0,
+          "unit": "h",
+          "step": 1.0,
+          "min": 0.0
+        },
+        {
+          "key": "T_min_off",
+          "label": "最小停机时长",
+          "type": "number",
+          "defaultValue": 135.0,
+          "unit": "h",
+          "step": 1.0,
+          "min": 0.0
+        }
+      ],
+      "commonEconomicFields": [
+        {
+          "key": "om_cost",
+          "label": "运维成本",
+          "type": "number",
+          "defaultValue": 0.1,
+          "unit": "元/kWh",
+          "step": 0.01
+        },
+        {
+          "key": "on_off_cost",
+          "label": "启停成本",
+          "type": "number",
+          "defaultValue": 10000.0,
+          "unit": "元/次",
+          "step": 100.0
+        },
+        {
+          "key": "initial_cost",
+          "label": "初始投资",
+          "type": "number",
+          "defaultValue": 4600.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "replace_cost",
+          "label": "更换成本",
+          "type": "number",
+          "defaultValue": 4600.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "material_cost",
+          "label": "材料成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manufacturing_cost",
+          "label": "其他制造成本",
+          "type": "number",
+          "defaultValue": 10.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manage_cost",
+          "label": "其他管理成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "repair_cost",
+          "label": "维修费率",
+          "type": "number",
+          "defaultValue": 0.03,
+          "step": 0.01,
+          "max": 1.0
+        },
+        {
+          "key": "life_year",
+          "label": "寿命",
+          "type": "number",
+          "defaultValue": 20.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "depreciation_year",
+          "label": "折旧年限",
+          "type": "number",
+          "defaultValue": 20.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "staff_number",
+          "label": "人员数量",
+          "type": "number",
+          "defaultValue": 250.0,
+          "unit": "人",
+          "step": 1.0
+        }
+      ],
+      "layerTechFields": [
+        {
+          "key": "adjust_limit",
+          "label": "调节上限",
+          "type": "number",
+          "defaultValue": 0.3,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        }
+      ],
+      "layerEconomicFields": [
+        {
+          "key": "adjust_cost",
+          "label": "调节成本",
+          "type": "number",
+          "defaultValue": 0.15,
+          "unit": "元/kWh",
+          "step": 0.01
+        }
+      ],
+      "constraintFields": [
+        {
+          "key": "ramp_constraint_on",
+          "label": "启用爬坡约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "min_constraint_on",
+          "label": "启用最小出力约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "on_off_constraint_on",
+          "label": "启用启停约束",
+          "type": "boolean",
+          "defaultValue": false
+        },
+        {
+          "key": "adjust_constraint_on",
+          "label": "启用调节约束",
+          "type": "boolean",
+          "defaultValue": true
+        }
+      ],
+      "objectiveFields": [
+        {
+          "key": "om_objective_on",
+          "label": "启用运维目标",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "adjust_objective_on",
+          "label": "启用调节目标",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "on_off_objective_on",
+          "label": "启用启停目标",
+          "type": "boolean",
+          "defaultValue": false
+        }
+      ]
+    },
+    "GP": {
+      "backendKey": "GP",
+      "label": "气电机组",
+      "description": "燃气发电机组",
+      "category": "power",
+      "group": "power-converter",
+      "tags": [
+        "转换设备",
+        "火电"
+      ],
+      "boundaryKey": [
+        "other"
+      ],
+      "ports": [
+        {
+          "id": "power-out",
+          "side": "right",
+          "direction": "out",
+          "medium": "electric",
+          "offset": 50,
+          "label": "功率输出"
+        }
+      ],
+      "layerStatuses": {
+        "1": [
+          "stand_alone",
+          "disabled"
+        ],
+        "2": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "3": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "4": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "5": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ]
+      },
+      "commonTechFields": [
+        {
+          "key": "capacity",
+          "label": "装机容量",
+          "type": "number",
+          "defaultValue": 450000.0,
+          "unit": "kW",
+          "step": 1000.0,
+          "min": 0.0,
+          "required": true,
+          "planning": {
+            "optimizable": true,
+            "defaultLowerFactor": 0.5,
+            "defaultUpperFactor": 2.0
+          }
+        },
+        {
+          "key": "η",
+          "label": "发电效率",
+          "type": "number",
+          "defaultValue": 0.55,
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "ramp",
+          "label": "爬坡率",
+          "type": "number",
+          "defaultValue": 0.6,
+          "unit": "%/min",
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "min",
+          "label": "最小出力比例",
+          "type": "number",
+          "defaultValue": 0.2,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "T_min_on",
+          "label": "最小开机时长",
+          "type": "number",
+          "defaultValue": 4.0,
+          "unit": "h",
+          "step": 1.0,
+          "min": 0.0
+        },
+        {
+          "key": "T_min_off",
+          "label": "最小停机时长",
+          "type": "number",
+          "defaultValue": 8.0,
+          "unit": "h",
+          "step": 1.0,
+          "min": 0.0
+        }
+      ],
+      "commonEconomicFields": [
+        {
+          "key": "om_cost",
+          "label": "运维成本",
+          "type": "number",
+          "defaultValue": 0.08,
+          "unit": "元/kWh",
+          "step": 0.01
+        },
+        {
+          "key": "on_off_cost",
+          "label": "启停成本",
+          "type": "number",
+          "defaultValue": 5000.0,
+          "unit": "元/次",
+          "step": 100.0
+        },
+        {
+          "key": "initial_cost",
+          "label": "初始投资",
+          "type": "number",
+          "defaultValue": 3500.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "replace_cost",
+          "label": "更换成本",
+          "type": "number",
+          "defaultValue": 3500.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "material_cost",
+          "label": "材料成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manufacturing_cost",
+          "label": "其他制造成本",
+          "type": "number",
+          "defaultValue": 10.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manage_cost",
+          "label": "其他管理成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "repair_cost",
+          "label": "维修费率",
+          "type": "number",
+          "defaultValue": 0.025,
+          "step": 0.01,
+          "max": 1.0
+        },
+        {
+          "key": "life_year",
+          "label": "寿命",
+          "type": "number",
+          "defaultValue": 25.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "depreciation_year",
+          "label": "折旧年限",
+          "type": "number",
+          "defaultValue": 25.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "staff_number",
+          "label": "人员数量",
+          "type": "number",
+          "defaultValue": 200.0,
+          "unit": "人",
+          "step": 1.0
+        }
+      ],
+      "layerTechFields": [
+        {
+          "key": "adjust_limit",
+          "label": "调节上限",
+          "type": "number",
+          "defaultValue": 0.3,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        }
+      ],
+      "layerEconomicFields": [
+        {
+          "key": "adjust_cost",
+          "label": "调节成本",
+          "type": "number",
+          "defaultValue": 0.12,
+          "unit": "元/kWh",
+          "step": 0.01
+        }
+      ],
+      "constraintFields": [
+        {
+          "key": "ramp_constraint_on",
+          "label": "启用爬坡约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "min_constraint_on",
+          "label": "启用最小出力约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "on_off_constraint_on",
+          "label": "启用启停约束",
+          "type": "boolean",
+          "defaultValue": false
+        },
+        {
+          "key": "adjust_constraint_on",
+          "label": "启用调节约束",
+          "type": "boolean",
+          "defaultValue": true
+        }
+      ],
+      "objectiveFields": [
+        {
+          "key": "om_objective_on",
+          "label": "启用运维目标",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "adjust_objective_on",
+          "label": "启用调节目标",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "on_off_objective_on",
+          "label": "启用启停目标",
+          "type": "boolean",
+          "defaultValue": false
+        }
+      ]
+    },
+    "CHP": {
+      "backendKey": "CHP",
+      "label": "热电联产",
+      "description": "热电联产机组",
+      "category": "power",
+      "group": "power-converter",
+      "tags": [
+        "转换设备",
+        "火电",
+        "热电联产"
+      ],
+      "boundaryKey": [
+        "heat"
+      ],
+      "ports": [
+        {
+          "id": "power-out",
+          "side": "right",
+          "direction": "out",
+          "medium": "electric",
+          "offset": 50,
+          "label": "电功率输出"
+        },
+        {
+          "id": "heat-out",
+          "side": "right",
+          "direction": "out",
+          "medium": "thermal",
+          "offset": 78,
+          "label": "热功率输出"
+        }
+      ],
+      "layerStatuses": {
+        "1": [
+          "stand_alone",
+          "disabled"
+        ],
+        "2": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "3": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "4": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "5": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ]
+      },
+      "commonTechFields": [
+        {
+          "key": "capacity",
+          "label": "装机容量",
+          "type": "number",
+          "defaultValue": 340000.0,
+          "unit": "kW",
+          "step": 1000.0,
+          "min": 0.0,
+          "required": true,
+          "planning": {
+            "optimizable": true,
+            "defaultLowerFactor": 0.5,
+            "defaultUpperFactor": 2.0
+          }
+        },
+        {
+          "key": "η_e",
+          "label": "发电效率",
+          "type": "number",
+          "defaultValue": 0.4,
+          "step": 0.01,
+          "min": 0.01,
+          "max": 1.0
+        },
+        {
+          "key": "β",
+          "label": "固定热电比",
+          "type": "number",
+          "defaultValue": 0.5,
+          "step": 0.01,
+          "min": 0.01,
+          "max": 2.0
+        },
+        {
+          "key": "ramp",
+          "label": "爬坡率",
+          "type": "number",
+          "defaultValue": 0.5,
+          "unit": "%/min",
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "min",
+          "label": "最小出力比例",
+          "type": "number",
+          "defaultValue": 0.3,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "T_min_on",
+          "label": "最小开机时长",
+          "type": "number",
+          "defaultValue": 4.0,
+          "unit": "h",
+          "step": 1.0,
+          "min": 0.0
+        },
+        {
+          "key": "T_min_off",
+          "label": "最小停机时长",
+          "type": "number",
+          "defaultValue": 8.0,
+          "unit": "h",
+          "step": 1.0,
+          "min": 0.0
+        }
+      ],
+      "commonEconomicFields": [
+        {
+          "key": "om_cost",
+          "label": "运维成本",
+          "type": "number",
+          "defaultValue": 0.08,
+          "unit": "元/kWh",
+          "step": 0.01
+        },
+        {
+          "key": "on_off_cost",
+          "label": "启停成本",
+          "type": "number",
+          "defaultValue": 8000.0,
+          "unit": "元/次",
+          "step": 100.0
+        },
+        {
+          "key": "initial_cost",
+          "label": "初始投资",
+          "type": "number",
+          "defaultValue": 5000.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "replace_cost",
+          "label": "更换成本",
+          "type": "number",
+          "defaultValue": 5000.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "material_cost",
+          "label": "材料成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manufacturing_cost",
+          "label": "其他制造成本",
+          "type": "number",
+          "defaultValue": 10.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manage_cost",
+          "label": "其他管理成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "repair_cost",
+          "label": "维修费率",
+          "type": "number",
+          "defaultValue": 0.03,
+          "step": 0.01,
+          "max": 1.0
+        },
+        {
+          "key": "life_year",
+          "label": "寿命",
+          "type": "number",
+          "defaultValue": 25.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "depreciation_year",
+          "label": "折旧年限",
+          "type": "number",
+          "defaultValue": 25.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "staff_number",
+          "label": "人员数量",
+          "type": "number",
+          "defaultValue": 200.0,
+          "unit": "人",
+          "step": 1.0
+        }
+      ],
+      "layerTechFields": [
+        {
+          "key": "adjust_limit",
+          "label": "调节上限",
+          "type": "number",
+          "defaultValue": 0.3,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        }
+      ],
+      "layerEconomicFields": [
+        {
+          "key": "adjust_cost",
+          "label": "调节成本",
+          "type": "number",
+          "defaultValue": 0.12,
+          "unit": "元/kWh",
+          "step": 0.01
+        }
+      ],
+      "constraintFields": [
+        {
+          "key": "ramp_constraint_on",
+          "label": "启用爬坡约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "min_constraint_on",
+          "label": "启用最小出力约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "on_off_constraint_on",
+          "label": "启用启停约束",
+          "type": "boolean",
+          "defaultValue": false
+        },
+        {
+          "key": "adjust_constraint_on",
+          "label": "启用调节约束",
+          "type": "boolean",
+          "defaultValue": true
+        }
+      ],
+      "objectiveFields": [
+        {
+          "key": "om_objective_on",
+          "label": "启用运维目标",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "adjust_objective_on",
+          "label": "启用调节目标",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "on_off_objective_on",
+          "label": "启用启停目标",
+          "type": "boolean",
+          "defaultValue": false
+        }
+      ]
+    },
+    "ES": {
+      "backendKey": "ES",
+      "label": "电化学储能",
+      "description": "电池储能系统",
+      "category": "storage",
+      "group": "electric-storage",
+      "tags": [
+        "电储能",
+        "电池"
+      ],
+      "ports": [
+        {
+          "id": "power-in",
+          "side": "left",
+          "direction": "in",
+          "medium": "electric",
+          "offset": 40,
+          "label": "充电"
+        },
+        {
+          "id": "power-out",
+          "side": "right",
+          "direction": "out",
+          "medium": "electric",
+          "offset": 40,
+          "label": "放电"
+        }
+      ],
+      "layerStatuses": {
+        "1": [
+          "stand_alone",
+          "disabled"
+        ],
+        "2": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ],
+        "3": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ],
+        "4": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ],
+        "5": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ]
+      },
+      "commonTechFields": [
+        {
+          "key": "capacity",
+          "label": "储能容量",
+          "type": "number",
+          "defaultValue": 200000.0,
+          "unit": "kWh",
+          "step": 1000.0,
+          "min": 0.0,
+          "required": true,
+          "planning": {
+            "optimizable": true,
+            "defaultLowerFactor": 0.5,
+            "defaultUpperFactor": 2.0
+          }
+        },
+        {
+          "key": "η",
+          "label": "充放电效率",
+          "type": "number",
+          "defaultValue": 0.95,
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "ramp",
+          "label": "充放电倍率",
+          "type": "number",
+          "defaultValue": 0.5,
+          "unit": "%/min",
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "max",
+          "label": "最大SOC",
+          "type": "number",
+          "defaultValue": 1.0,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "min",
+          "label": "最小SOC",
+          "type": "number",
+          "defaultValue": 0.1,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "ini",
+          "label": "初始SOC",
+          "type": "number",
+          "defaultValue": 0.1,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "loss",
+          "label": "自放电率",
+          "type": "number",
+          "defaultValue": 0.001,
+          "unit": "1/h",
+          "step": 0.001,
+          "min": 0.0,
+          "max": 1.0
+        }
+      ],
+      "commonEconomicFields": [
+        {
+          "key": "om_cost",
+          "label": "运维成本",
+          "type": "number",
+          "defaultValue": 0.1,
+          "unit": "元/kWh",
+          "step": 0.01
+        },
+        {
+          "key": "initial_cost",
+          "label": "初始投资",
+          "type": "number",
+          "defaultValue": 1500.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "replace_cost",
+          "label": "更换成本",
+          "type": "number",
+          "defaultValue": 1500.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "material_cost",
+          "label": "材料成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manufacturing_cost",
+          "label": "其他制造成本",
+          "type": "number",
+          "defaultValue": 10.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manage_cost",
+          "label": "其他管理成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "repair_cost",
+          "label": "维修费率",
+          "type": "number",
+          "defaultValue": 0.01,
+          "step": 0.01,
+          "max": 1.0
+        },
+        {
+          "key": "life_year",
+          "label": "寿命",
+          "type": "number",
+          "defaultValue": 10.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "depreciation_year",
+          "label": "折旧年限",
+          "type": "number",
+          "defaultValue": 10.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "staff_number",
+          "label": "人员数量",
+          "type": "number",
+          "defaultValue": 50.0,
+          "unit": "人",
+          "step": 1.0
+        }
+      ],
+      "layerTechFields": [
+        {
+          "key": "adjust_limit",
+          "label": "调节上限",
+          "type": "number",
+          "defaultValue": 0.3,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        }
+      ],
+      "layerEconomicFields": [
+        {
+          "key": "adjust_cost",
+          "label": "调节成本",
+          "type": "number",
+          "defaultValue": 0.15,
+          "unit": "元/kWh",
+          "step": 0.01
+        }
+      ],
+      "constraintFields": [
+        {
+          "key": "ramp_constraint_on",
+          "label": "启用爬坡约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "min_constraint_on",
+          "label": "启用最小SOC约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "adjust_constraint_on",
+          "label": "启用调节约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "start_end_equality_constraint_on",
+          "label": "启用首末状态相等约束",
+          "type": "boolean",
+          "defaultValue": true
+        }
+      ],
+      "objectiveFields": [
+        {
+          "key": "om_objective_on",
+          "label": "启用运维目标",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "adjust_objective_on",
+          "label": "启用调节目标",
+          "type": "boolean",
+          "defaultValue": true
+        }
+      ]
+    },
+    "HS": {
+      "backendKey": "HS",
+      "label": "储氢罐",
+      "description": "氢气储存系统",
+      "category": "hydrogen",
+      "group": "hydrogen-storage",
+      "tags": [
+        "氢储能",
+        "储氢"
+      ],
+      "ports": [
+        {
+          "id": "h2-in",
+          "side": "left",
+          "direction": "in",
+          "medium": "hydrogen",
+          "offset": 40,
+          "label": "充氢"
+        },
+        {
+          "id": "h2-out",
+          "side": "right",
+          "direction": "out",
+          "medium": "hydrogen",
+          "offset": 40,
+          "label": "放氢"
+        }
+      ],
+      "layerStatuses": {
+        "1": [
+          "stand_alone",
+          "disabled"
+        ],
+        "2": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ],
+        "3": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ],
+        "4": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ],
+        "5": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ]
+      },
+      "commonTechFields": [
+        {
+          "key": "capacity",
+          "label": "储氢容量",
+          "type": "number",
+          "defaultValue": 50000.0,
+          "unit": "kg",
+          "step": 1000.0,
+          "min": 0.0,
+          "required": true,
+          "planning": {
+            "optimizable": true,
+            "defaultLowerFactor": 0.5,
+            "defaultUpperFactor": 2.0
+          }
+        },
+        {
+          "key": "η",
+          "label": "充放氢效率",
+          "type": "number",
+          "defaultValue": 0.95,
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "ramp",
+          "label": "充放氢倍率",
+          "type": "number",
+          "defaultValue": 0.5,
+          "unit": "%/min",
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "max",
+          "label": "最大储氢比",
+          "type": "number",
+          "defaultValue": 1.0,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "min",
+          "label": "最小储氢比",
+          "type": "number",
+          "defaultValue": 0.1,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "ini",
+          "label": "初始储氢比",
+          "type": "number",
+          "defaultValue": 0.1,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "loss",
+          "label": "泄漏率",
+          "type": "number",
+          "defaultValue": 0.001,
+          "unit": "1/h",
+          "step": 0.001,
+          "min": 0.0,
+          "max": 1.0
+        }
+      ],
+      "commonEconomicFields": [
+        {
+          "key": "om_cost",
+          "label": "运维成本",
+          "type": "number",
+          "defaultValue": 0.1,
+          "unit": "元/kg",
+          "step": 0.01
+        },
+        {
+          "key": "initial_cost",
+          "label": "初始投资",
+          "type": "number",
+          "defaultValue": 3000.0,
+          "unit": "元/kg",
+          "step": 100.0
+        },
+        {
+          "key": "replace_cost",
+          "label": "更换成本",
+          "type": "number",
+          "defaultValue": 3000.0,
+          "unit": "元/kg",
+          "step": 100.0
+        },
+        {
+          "key": "material_cost",
+          "label": "材料成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kg",
+          "step": 1.0
+        },
+        {
+          "key": "other_manufacturing_cost",
+          "label": "其他制造成本",
+          "type": "number",
+          "defaultValue": 10.0,
+          "unit": "元/kg",
+          "step": 1.0
+        },
+        {
+          "key": "other_manage_cost",
+          "label": "其他管理成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kg",
+          "step": 1.0
+        },
+        {
+          "key": "repair_cost",
+          "label": "维修费率",
+          "type": "number",
+          "defaultValue": 0.01,
+          "step": 0.01,
+          "max": 1.0
+        },
+        {
+          "key": "life_year",
+          "label": "寿命",
+          "type": "number",
+          "defaultValue": 15.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "depreciation_year",
+          "label": "折旧年限",
+          "type": "number",
+          "defaultValue": 15.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "staff_number",
+          "label": "人员数量",
+          "type": "number",
+          "defaultValue": 20.0,
+          "unit": "人",
+          "step": 1.0
+        }
+      ],
+      "layerTechFields": [
+        {
+          "key": "adjust_limit",
+          "label": "调节上限",
+          "type": "number",
+          "defaultValue": 0.3,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        }
+      ],
+      "layerEconomicFields": [
+        {
+          "key": "adjust_cost",
+          "label": "调节成本",
+          "type": "number",
+          "defaultValue": 0.15,
+          "unit": "元/kg",
+          "step": 0.01
+        }
+      ],
+      "constraintFields": [
+        {
+          "key": "ramp_constraint_on",
+          "label": "启用爬坡约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "min_constraint_on",
+          "label": "启用最小储氢约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "adjust_constraint_on",
+          "label": "启用调节约束",
+          "type": "boolean",
+          "defaultValue": false
+        },
+        {
+          "key": "start_end_equality_constraint_on",
+          "label": "启用首末时刻相等约束",
+          "type": "boolean",
+          "defaultValue": false
+        }
+      ],
+      "objectiveFields": [
+        {
+          "key": "om_objective_on",
+          "label": "启用运维成本",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "adjust_objective_on",
+          "label": "启用调节成本",
+          "type": "boolean",
+          "defaultValue": false
+        }
+      ]
+    },
+    "FS": {
+      "backendKey": "FS",
+      "label": "飞轮储能",
+      "description": "飞轮储能系统，通过高速旋转飞轮存储动能，具有毫秒级响应、超高循环寿命(>100万次)、零容量衰减等特点，适合电力调频和短时高功率补偿场景",
+      "category": "storage",
+      "group": "electric-storage",
+      "tags": [
+        "电储能",
+        "飞轮",
+        "快速响应",
+        "长寿命"
+      ],
+      "ports": [
+        {
+          "id": "power-in",
+          "side": "left",
+          "direction": "in",
+          "medium": "electric",
+          "offset": 40,
+          "label": "充电"
+        },
+        {
+          "id": "power-out",
+          "side": "right",
+          "direction": "out",
+          "medium": "electric",
+          "offset": 40,
+          "label": "放电"
+        }
+      ],
+      "layerStatuses": {
+        "1": [
+          "stand_alone",
+          "disabled"
+        ],
+        "2": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ],
+        "3": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ],
+        "4": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ],
+        "5": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ]
+      },
+      "commonTechFields": [
+        {
+          "key": "capacity",
+          "label": "储能容量",
+          "type": "number",
+          "defaultValue": 500.0,
+          "unit": "kWh",
+          "step": 100.0,
+          "min": 0.0,
+          "required": true,
+          "planning": {
+            "optimizable": true,
+            "defaultLowerFactor": 0.5,
+            "defaultUpperFactor": 2.0
+          }
+        },
+        {
+          "key": "η",
+          "label": "往返效率",
+          "type": "number",
+          "defaultValue": 0.88,
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "ramp",
+          "label": "响应倍率",
+          "type": "number",
+          "defaultValue": 0.95,
+          "unit": "%/min",
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "max",
+          "label": "最大SOC",
+          "type": "number",
+          "defaultValue": 0.95,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "min",
+          "label": "最小SOC",
+          "type": "number",
+          "defaultValue": 0.15,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "ini",
+          "label": "初始SOC",
+          "type": "number",
+          "defaultValue": 0.5,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "loss",
+          "label": "摩擦损耗率",
+          "type": "number",
+          "defaultValue": 0.02,
+          "unit": "1/h",
+          "step": 0.005,
+          "min": 0.0,
+          "max": 1.0
+        }
+      ],
+      "commonEconomicFields": [
+        {
+          "key": "om_cost",
+          "label": "运维成本",
+          "type": "number",
+          "defaultValue": 0.05,
+          "unit": "元/kWh",
+          "step": 0.01
+        },
+        {
+          "key": "initial_cost",
+          "label": "初始投资",
+          "type": "number",
+          "defaultValue": 3500.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "replace_cost",
+          "label": "更换成本",
+          "type": "number",
+          "defaultValue": 2500.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "material_cost",
+          "label": "材料成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manufacturing_cost",
+          "label": "其他制造成本",
+          "type": "number",
+          "defaultValue": 30.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manage_cost",
+          "label": "其他管理成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "repair_cost",
+          "label": "维修费率",
+          "type": "number",
+          "defaultValue": 0.008,
+          "step": 0.01,
+          "max": 1.0
+        },
+        {
+          "key": "life_year",
+          "label": "寿命",
+          "type": "number",
+          "defaultValue": 25.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "depreciation_year",
+          "label": "折旧年限",
+          "type": "number",
+          "defaultValue": 25.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "staff_number",
+          "label": "人员数量",
+          "type": "number",
+          "defaultValue": 10.0,
+          "unit": "人",
+          "step": 1.0
+        }
+      ],
+      "layerTechFields": [
+        {
+          "key": "adjust_limit",
+          "label": "调节上限",
+          "type": "number",
+          "defaultValue": 0.5,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        }
+      ],
+      "layerEconomicFields": [
+        {
+          "key": "adjust_cost",
+          "label": "调节成本",
+          "type": "number",
+          "defaultValue": 0.1,
+          "unit": "元/kWh",
+          "step": 0.01
+        }
+      ],
+      "constraintFields": [
+        {
+          "key": "ramp_constraint_on",
+          "label": "启用爬坡约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "min_constraint_on",
+          "label": "启用最小SOC约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "adjust_constraint_on",
+          "label": "启用调节约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "start_end_equality_constraint_on",
+          "label": "启用首末状态相等约束",
+          "type": "boolean",
+          "defaultValue": true
+        }
+      ],
+      "objectiveFields": [
+        {
+          "key": "om_objective_on",
+          "label": "启用运维目标",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "adjust_objective_on",
+          "label": "启用调节目标",
+          "type": "boolean",
+          "defaultValue": true
+        }
+      ]
+    },
+    "PS": {
+      "backendKey": "PS",
+      "label": "抽水蓄能",
+      "description": "抽水蓄能电站，利用上下水库势能差进行储能，具有容量大、寿命长、技术成熟等特点，是目前最大规模的储能方式，适合电网调峰填谷和备用容量",
+      "category": "storage",
+      "group": "electric-storage",
+      "tags": [
+        "电储能",
+        "抽水蓄能",
+        "水电",
+        "大规模"
+      ],
+      "ports": [
+        {
+          "id": "power-in",
+          "side": "left",
+          "direction": "in",
+          "medium": "electric",
+          "offset": 40,
+          "label": "抽水"
+        },
+        {
+          "id": "power-out",
+          "side": "right",
+          "direction": "out",
+          "medium": "electric",
+          "offset": 40,
+          "label": "发电"
+        }
+      ],
+      "layerStatuses": {
+        "1": [
+          "stand_alone",
+          "disabled"
+        ],
+        "2": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ],
+        "3": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ],
+        "4": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ],
+        "5": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ]
+      },
+      "commonTechFields": [
+        {
+          "key": "capacity",
+          "label": "装机容量",
+          "type": "number",
+          "defaultValue": 1200000.0,
+          "unit": "kW",
+          "step": 10000.0,
+          "min": 0.0,
+          "required": true,
+          "planning": {
+            "optimizable": true,
+            "defaultLowerFactor": 0.5,
+            "defaultUpperFactor": 2.0
+          }
+        },
+        {
+          "key": "storage_capacity",
+          "label": "储能容量",
+          "type": "number",
+          "defaultValue": 6000000.0,
+          "unit": "kWh",
+          "step": 100000.0,
+          "min": 0.0
+        },
+        {
+          "key": "η_pump",
+          "label": "水泵效率",
+          "type": "number",
+          "defaultValue": 0.92,
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "η_turbine",
+          "label": "水轮机效率",
+          "type": "number",
+          "defaultValue": 0.9,
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "ramp",
+          "label": "爬坡速率",
+          "type": "number",
+          "defaultValue": 0.3,
+          "unit": "%/min",
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "max",
+          "label": "最大水位",
+          "type": "number",
+          "defaultValue": 1.0,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "min",
+          "label": "最小水位",
+          "type": "number",
+          "defaultValue": 0.1,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "ini",
+          "label": "初始水位",
+          "type": "number",
+          "defaultValue": 0.5,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "loss",
+          "label": "蒸发渗漏率",
+          "type": "number",
+          "defaultValue": 0.0005,
+          "unit": "1/h",
+          "step": 0.0001,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "head_height",
+          "label": "额定水头",
+          "type": "number",
+          "defaultValue": 500.0,
+          "unit": "m",
+          "step": 10.0,
+          "min": 0.0
+        }
+      ],
+      "commonEconomicFields": [
+        {
+          "key": "om_cost",
+          "label": "运维成本",
+          "type": "number",
+          "defaultValue": 0.05,
+          "unit": "元/kWh",
+          "step": 0.01
+        },
+        {
+          "key": "initial_cost",
+          "label": "初始投资",
+          "type": "number",
+          "defaultValue": 5000.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "replace_cost",
+          "label": "更换成本",
+          "type": "number",
+          "defaultValue": 5000.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "material_cost",
+          "label": "材料成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manufacturing_cost",
+          "label": "其他制造成本",
+          "type": "number",
+          "defaultValue": 50.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manage_cost",
+          "label": "其他管理成本",
+          "type": "number",
+          "defaultValue": 20.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "repair_cost",
+          "label": "维修费率",
+          "type": "number",
+          "defaultValue": 0.015,
+          "step": 0.01,
+          "max": 1.0
+        },
+        {
+          "key": "life_year",
+          "label": "寿命",
+          "type": "number",
+          "defaultValue": 50.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "depreciation_year",
+          "label": "折旧年限",
+          "type": "number",
+          "defaultValue": 50.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "staff_number",
+          "label": "人员数量",
+          "type": "number",
+          "defaultValue": 100.0,
+          "unit": "人",
+          "step": 1.0
+        }
+      ],
+      "layerTechFields": [
+        {
+          "key": "adjust_limit",
+          "label": "调节上限",
+          "type": "number",
+          "defaultValue": 0.2,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        }
+      ],
+      "layerEconomicFields": [
+        {
+          "key": "adjust_cost",
+          "label": "调节成本",
+          "type": "number",
+          "defaultValue": 0.1,
+          "unit": "元/kWh",
+          "step": 0.01
+        }
+      ],
+      "constraintFields": [
+        {
+          "key": "ramp_constraint_on",
+          "label": "启用爬坡约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "min_constraint_on",
+          "label": "启用最小水位约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "adjust_constraint_on",
+          "label": "启用调节约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "start_end_equality_constraint_on",
+          "label": "启用首末状态相等约束",
+          "type": "boolean",
+          "defaultValue": true
+        }
+      ],
+      "objectiveFields": [
+        {
+          "key": "om_objective_on",
+          "label": "启用运维目标",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "adjust_objective_on",
+          "label": "启用调节目标",
+          "type": "boolean",
+          "defaultValue": true
+        }
+      ]
+    },
+    "CS": {
+      "backendKey": "CS",
+      "label": "压缩空气储能",
+      "description": "压缩空气储能系统，利用低谷电压缩空气存储，高峰时释放空气驱动透平发电，具有容量大、寿命长、环保等特点，适合大规模长时储能场景",
+      "category": "storage",
+      "group": "electric-storage",
+      "tags": [
+        "电储能",
+        "压缩空气",
+        "大规模",
+        "长时储能"
+      ],
+      "ports": [
+        {
+          "id": "power-in",
+          "side": "left",
+          "direction": "in",
+          "medium": "electric",
+          "offset": 40,
+          "label": "充电"
+        },
+        {
+          "id": "power-out",
+          "side": "right",
+          "direction": "out",
+          "medium": "electric",
+          "offset": 40,
+          "label": "放电"
+        }
+      ],
+      "layerStatuses": {
+        "1": [
+          "stand_alone",
+          "disabled"
+        ],
+        "2": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ],
+        "3": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ],
+        "4": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ],
+        "5": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "full_follow"
+        ]
+      },
+      "commonTechFields": [
+        {
+          "key": "capacity",
+          "label": "储能容量",
+          "type": "number",
+          "defaultValue": 500000.0,
+          "unit": "kWh",
+          "step": 10000.0,
+          "min": 0.0,
+          "required": true,
+          "planning": {
+            "optimizable": true,
+            "defaultLowerFactor": 0.5,
+            "defaultUpperFactor": 2.0
+          }
+        },
+        {
+          "key": "η",
+          "label": "往返效率",
+          "type": "number",
+          "defaultValue": 0.7,
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "ramp",
+          "label": "爬坡速率",
+          "type": "number",
+          "defaultValue": 0.3,
+          "unit": "%/min",
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "max",
+          "label": "最大储气率",
+          "type": "number",
+          "defaultValue": 0.95,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "min",
+          "label": "最小储气率",
+          "type": "number",
+          "defaultValue": 0.1,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "ini",
+          "label": "初始储气率",
+          "type": "number",
+          "defaultValue": 0.5,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "loss",
+          "label": "漏气率",
+          "type": "number",
+          "defaultValue": 0.002,
+          "unit": "1/h",
+          "step": 0.001,
+          "min": 0.0,
+          "max": 1.0
+        }
+      ],
+      "commonEconomicFields": [
+        {
+          "key": "om_cost",
+          "label": "运维成本",
+          "type": "number",
+          "defaultValue": 0.05,
+          "unit": "元/kWh",
+          "step": 0.01
+        },
+        {
+          "key": "initial_cost",
+          "label": "初始投资",
+          "type": "number",
+          "defaultValue": 1500.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "replace_cost",
+          "label": "更换成本",
+          "type": "number",
+          "defaultValue": 1200.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "material_cost",
+          "label": "材料成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manufacturing_cost",
+          "label": "其他制造成本",
+          "type": "number",
+          "defaultValue": 15.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manage_cost",
+          "label": "其他管理成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "repair_cost",
+          "label": "维修费率",
+          "type": "number",
+          "defaultValue": 0.012,
+          "step": 0.01,
+          "max": 1.0
+        },
+        {
+          "key": "life_year",
+          "label": "寿命",
+          "type": "number",
+          "defaultValue": 30.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "depreciation_year",
+          "label": "折旧年限",
+          "type": "number",
+          "defaultValue": 30.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "staff_number",
+          "label": "人员数量",
+          "type": "number",
+          "defaultValue": 30.0,
+          "unit": "人",
+          "step": 1.0
+        }
+      ],
+      "layerTechFields": [
+        {
+          "key": "adjust_limit",
+          "label": "调节上限",
+          "type": "number",
+          "defaultValue": 0.3,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        }
+      ],
+      "layerEconomicFields": [
+        {
+          "key": "adjust_cost",
+          "label": "调节成本",
+          "type": "number",
+          "defaultValue": 0.12,
+          "unit": "元/kWh",
+          "step": 0.01
+        }
+      ],
+      "constraintFields": [
+        {
+          "key": "ramp_constraint_on",
+          "label": "启用爬坡约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "min_constraint_on",
+          "label": "启用最小储气约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "adjust_constraint_on",
+          "label": "启用调节约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "start_end_equality_constraint_on",
+          "label": "启用首末状态相等约束",
+          "type": "boolean",
+          "defaultValue": true
+        }
+      ],
+      "objectiveFields": [
+        {
+          "key": "om_objective_on",
+          "label": "启用运维目标",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "adjust_objective_on",
+          "label": "启用调节目标",
+          "type": "boolean",
+          "defaultValue": true
+        }
+      ]
+    },
+    "ET": {
+      "backendKey": "ET",
+      "label": "电解槽",
+      "description": "电解水制氢设备",
+      "category": "hydrogen",
+      "group": "hydrogen-converter",
+      "tags": [
+        "转换设备",
+        "制氢",
+        "电制气"
+      ],
+      "boundaryKey": [
+        "other"
+      ],
+      "ports": [
+        {
+          "id": "power-in",
+          "side": "left",
+          "direction": "in",
+          "medium": "electric",
+          "offset": 40,
+          "label": "电输入"
+        },
+        {
+          "id": "h2-out",
+          "side": "right",
+          "direction": "out",
+          "medium": "hydrogen",
+          "offset": 60,
+          "label": "氢输出"
+        }
+      ],
+      "layerStatuses": {
+        "1": [
+          "stand_alone",
+          "disabled"
+        ],
+        "2": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "3": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "4": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "5": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ]
+      },
+      "commonTechFields": [
+        {
+          "key": "capacity",
+          "label": "额定功率",
+          "type": "number",
+          "defaultValue": 100000.0,
+          "unit": "kW",
+          "step": 1000.0,
+          "min": 0.0,
+          "required": true,
+          "planning": {
+            "optimizable": true,
+            "defaultLowerFactor": 0.5,
+            "defaultUpperFactor": 2.0
+          }
+        },
+        {
+          "key": "η",
+          "label": "制氢效率",
+          "type": "number",
+          "defaultValue": 0.7,
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "ramp",
+          "label": "爬坡率",
+          "type": "number",
+          "defaultValue": 0.5,
+          "unit": "%/min",
+          "step": 0.01,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "min",
+          "label": "最小出力比例",
+          "type": "number",
+          "defaultValue": 0.1,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "T_min_on",
+          "label": "最小开机时长",
+          "type": "number",
+          "defaultValue": 2.0,
+          "unit": "h",
+          "step": 1.0,
+          "min": 0.0
+        },
+        {
+          "key": "T_min_off",
+          "label": "最小停机时长",
+          "type": "number",
+          "defaultValue": 1.0,
+          "unit": "h",
+          "step": 1.0,
+          "min": 0.0
+        }
+      ],
+      "commonEconomicFields": [
+        {
+          "key": "om_cost",
+          "label": "运维成本",
+          "type": "number",
+          "defaultValue": 0.05,
+          "unit": "元/kWh",
+          "step": 0.01
+        },
+        {
+          "key": "on_off_cost",
+          "label": "启停成本",
+          "type": "number",
+          "defaultValue": 2000.0,
+          "unit": "元/次",
+          "step": 100.0
+        },
+        {
+          "key": "initial_cost",
+          "label": "初始投资",
+          "type": "number",
+          "defaultValue": 8000.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "replace_cost",
+          "label": "更换成本",
+          "type": "number",
+          "defaultValue": 8000.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "material_cost",
+          "label": "材料成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manufacturing_cost",
+          "label": "其他制造成本",
+          "type": "number",
+          "defaultValue": 10.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manage_cost",
+          "label": "其他管理成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "repair_cost",
+          "label": "维修费率",
+          "type": "number",
+          "defaultValue": 0.03,
+          "step": 0.01,
+          "max": 1.0
+        },
+        {
+          "key": "life_year",
+          "label": "寿命",
+          "type": "number",
+          "defaultValue": 15.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "depreciation_year",
+          "label": "折旧年限",
+          "type": "number",
+          "defaultValue": 15.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "staff_number",
+          "label": "人员数量",
+          "type": "number",
+          "defaultValue": 30.0,
+          "unit": "人",
+          "step": 1.0
+        }
+      ],
+      "layerTechFields": [
+        {
+          "key": "adjust_limit",
+          "label": "调节上限",
+          "type": "number",
+          "defaultValue": 0.3,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        }
+      ],
+      "layerEconomicFields": [
+        {
+          "key": "adjust_cost",
+          "label": "调节成本",
+          "type": "number",
+          "defaultValue": 0.1,
+          "unit": "元/kWh",
+          "step": 0.01
+        }
+      ],
+      "constraintFields": [
+        {
+          "key": "ramp_constraint_on",
+          "label": "启用爬坡约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "min_constraint_on",
+          "label": "启用最小出力约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "on_off_constraint_on",
+          "label": "启用启停约束",
+          "type": "boolean",
+          "defaultValue": false
+        },
+        {
+          "key": "adjust_constraint_on",
+          "label": "启用调节约束",
+          "type": "boolean",
+          "defaultValue": true
+        }
+      ],
+      "objectiveFields": [
+        {
+          "key": "om_objective_on",
+          "label": "启用运维目标",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "adjust_objective_on",
+          "label": "启用调节目标",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "on_off_objective_on",
+          "label": "启用启停目标",
+          "type": "boolean",
+          "defaultValue": false
+        }
+      ]
+    },
+    "ELOAD": {
+      "label": "分时电负荷",
+      "description": "分时电负荷",
+      "category": "load",
+      "group": "time-shift-load",
+      "tags": [
+        "分时负荷",
+        "电力"
+      ],
+      "ports": [
+        {
+          "id": "power-in",
+          "side": "left",
+          "direction": "in",
+          "medium": "electric",
+          "offset": 50,
+          "label": "电输入"
+        }
+      ],
+      "boundaryKey": [
+        "power"
+      ],
+      "layerStatuses": {
+        "1": [
+          "stand_alone",
+          "disabled"
+        ],
+        "2": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "3": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "4": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "5": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ]
+      },
+      "commonTechFields": [
+        {
+          "key": "rated_demand",
+          "label": "额定负荷",
+          "type": "number",
+          "defaultValue": 150000.0,
+          "unit": "kW",
+          "step": 1000.0,
+          "min": 0.0
+        },
+        {
+          "key": "priority",
+          "label": "负荷等级",
+          "type": "select",
+          "defaultValue": "A",
+          "options": [
+            {
+              "label": "A级",
+              "value": "A"
+            },
+            {
+              "label": "B级",
+              "value": "B"
+            },
+            {
+              "label": "C级",
+              "value": "C"
+            }
+          ]
+        }
+      ],
+      "commonEconomicFields": [
+        {
+          "key": "om_cost",
+          "label": "运维成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kWh",
+          "step": 0.01
+        },
+        {
+          "key": "initial_cost",
+          "label": "初始投资",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "replace_cost",
+          "label": "更换成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "material_cost",
+          "label": "材料成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manufacturing_cost",
+          "label": "其他制造成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manage_cost",
+          "label": "其他管理成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "repair_cost",
+          "label": "维修费率",
+          "type": "number",
+          "defaultValue": 0.0,
+          "step": 0.01,
+          "max": 1.0
+        },
+        {
+          "key": "life_year",
+          "label": "寿命",
+          "type": "number",
+          "defaultValue": 20.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "depreciation_year",
+          "label": "折旧年限",
+          "type": "number",
+          "defaultValue": 20.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "staff_number",
+          "label": "人员数量",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "人",
+          "step": 1.0
+        }
+      ],
+      "layerTechFields": [
+        {
+          "key": "rated_demand",
+          "label": "额定负荷",
+          "type": "number",
+          "defaultValue": 150000.0,
+          "unit": "kW",
+          "step": 1000.0,
+          "min": 0.0
+        }
+      ],
+      "layerEconomicFields": [],
+      "constraintFields": [],
+      "objectiveFields": []
+    },
+    "HLOAD": {
+      "label": "分时氢负荷",
+      "description": "分时氢负荷",
+      "category": "load",
+      "group": "time-shift-load",
+      "tags": [
+        "分时负荷",
+        "氢气"
+      ],
+      "ports": [
+        {
+          "id": "h2-in",
+          "side": "left",
+          "direction": "in",
+          "medium": "hydrogen",
+          "offset": 50,
+          "label": "氢输入"
+        }
+      ],
+      "boundaryKey": [
+        "hydrogen"
+      ],
+      "layerStatuses": {
+        "1": [
+          "stand_alone",
+          "disabled"
+        ],
+        "2": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "3": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "4": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "5": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ]
+      },
+      "commonTechFields": [
+        {
+          "key": "rated_demand",
+          "label": "额定负荷",
+          "type": "number",
+          "defaultValue": 5000.0,
+          "unit": "kg/h",
+          "step": 100.0,
+          "min": 0.0
+        },
+        {
+          "key": "purity",
+          "label": "氢气纯度要求",
+          "type": "number",
+          "defaultValue": 0.9999,
+          "step": 0.0001,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "priority",
+          "label": "负荷等级",
+          "type": "select",
+          "defaultValue": "A",
+          "options": [
+            {
+              "label": "A级",
+              "value": "A"
+            },
+            {
+              "label": "B级",
+              "value": "B"
+            },
+            {
+              "label": "C级",
+              "value": "C"
+            }
+          ]
+        }
+      ],
+      "commonEconomicFields": [
+        {
+          "key": "om_cost",
+          "label": "运维成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kg",
+          "step": 0.01
+        },
+        {
+          "key": "initial_cost",
+          "label": "初始投资",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kg",
+          "step": 100.0
+        },
+        {
+          "key": "replace_cost",
+          "label": "更换成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kg",
+          "step": 100.0
+        },
+        {
+          "key": "material_cost",
+          "label": "材料成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kg",
+          "step": 1.0
+        },
+        {
+          "key": "other_manufacturing_cost",
+          "label": "其他制造成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kg",
+          "step": 1.0
+        },
+        {
+          "key": "other_manage_cost",
+          "label": "其他管理成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kg",
+          "step": 1.0
+        },
+        {
+          "key": "repair_cost",
+          "label": "维修费率",
+          "type": "number",
+          "defaultValue": 0.0,
+          "step": 0.01,
+          "max": 1.0
+        },
+        {
+          "key": "life_year",
+          "label": "寿命",
+          "type": "number",
+          "defaultValue": 20.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "depreciation_year",
+          "label": "折旧年限",
+          "type": "number",
+          "defaultValue": 20.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "staff_number",
+          "label": "人员数量",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "人",
+          "step": 1.0
+        }
+      ],
+      "layerTechFields": [
+        {
+          "key": "rated_demand",
+          "label": "额定负荷",
+          "type": "number",
+          "defaultValue": 5000.0,
+          "unit": "kg/h",
+          "step": 100.0,
+          "min": 0.0
+        }
+      ],
+      "layerEconomicFields": [],
+      "constraintFields": [],
+      "objectiveFields": []
+    },
+    "QLOAD": {
+      "label": "分时热负荷",
+      "description": "分时热负荷",
+      "category": "load",
+      "group": "time-shift-load",
+      "tags": [
+        "分时负荷",
+        "热力"
+      ],
+      "ports": [
+        {
+          "id": "heat-in",
+          "side": "left",
+          "direction": "in",
+          "medium": "thermal",
+          "offset": 50,
+          "label": "热输入"
+        }
+      ],
+      "boundaryKey": [
+        "heat"
+      ],
+      "layerStatuses": {
+        "1": [
+          "stand_alone",
+          "disabled"
+        ],
+        "2": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "3": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "4": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ],
+        "5": [
+          "stand_alone",
+          "disabled",
+          "fixed_state",
+          "adjust_power",
+          "full_follow"
+        ]
+      },
+      "commonTechFields": [
+        {
+          "key": "rated_demand",
+          "label": "额定热负荷",
+          "type": "number",
+          "defaultValue": 100000.0,
+          "unit": "kW",
+          "step": 1000.0,
+          "min": 0.0
+        },
+        {
+          "key": "priority",
+          "label": "负荷等级",
+          "type": "select",
+          "defaultValue": "A",
+          "options": [
+            {
+              "label": "A级",
+              "value": "A"
+            },
+            {
+              "label": "B级",
+              "value": "B"
+            },
+            {
+              "label": "C级",
+              "value": "C"
+            }
+          ]
+        }
+      ],
+      "commonEconomicFields": [
+        {
+          "key": "om_cost",
+          "label": "运维成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kWh",
+          "step": 0.01
+        },
+        {
+          "key": "initial_cost",
+          "label": "初始投资",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "replace_cost",
+          "label": "更换成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "material_cost",
+          "label": "材料成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manufacturing_cost",
+          "label": "其他制造成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manage_cost",
+          "label": "其他管理成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "repair_cost",
+          "label": "维修费率",
+          "type": "number",
+          "defaultValue": 0.0,
+          "step": 0.01,
+          "max": 1.0
+        },
+        {
+          "key": "life_year",
+          "label": "寿命",
+          "type": "number",
+          "defaultValue": 20.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "depreciation_year",
+          "label": "折旧年限",
+          "type": "number",
+          "defaultValue": 20.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "staff_number",
+          "label": "人员数量",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "人",
+          "step": 1.0
+        }
+      ],
+      "layerTechFields": [
+        {
+          "key": "rated_demand",
+          "label": "额定热负荷",
+          "type": "number",
+          "defaultValue": 100000.0,
+          "unit": "kW",
+          "step": 1000.0,
+          "min": 0.0
+        }
+      ],
+      "layerEconomicFields": [],
+      "constraintFields": [],
+      "objectiveFields": []
+    },
+    "GRID": {
+      "backendKey": "GRID",
+      "label": "电网",
+      "description": "电网并网点(POI)接口，表示系统与外部电网的功率交换边界。并网点功率为正表示向电网上送、为负表示从电网购入；首版支持接口容量、交换比例和购售电价配置，停用即离网",
+      "category": "power",
+      "group": "power-external-source",
+      "tags": [
+        "电网",
+        "并网点",
+        "外部系统",
+        "外部源"
+      ],
+      "ports": [
+        {
+          "id": "power-in",
+          "side": "left",
+          "direction": "in",
+          "medium": "electric",
+          "offset": 40,
+          "label": "上送"
+        },
+        {
+          "id": "power-out",
+          "side": "right",
+          "direction": "out",
+          "medium": "electric",
+          "offset": 40,
+          "label": "购入"
+        }
+      ],
+      "layerStatuses": {
+        "1": [
+          "stand_alone",
+          "disabled"
+        ],
+        "2": [
+          "stand_alone",
+          "disabled"
+        ],
+        "3": [
+          "stand_alone",
+          "disabled"
+        ],
+        "4": [
+          "stand_alone",
+          "disabled"
+        ],
+        "5": [
+          "stand_alone",
+          "disabled"
+        ]
+      },
+      "commonTechFields": [
+        {
+          "key": "capacity",
+          "label": "接口容量",
+          "type": "number",
+          "defaultValue": 1000000,
+          "unit": "kW",
+          "step": 10000,
+          "min": 0,
+          "required": true
+        },
+        {
+          "key": "sell_ratio",
+          "label": "上送比例",
+          "type": "number",
+          "defaultValue": 1.0,
+          "step": 0.05,
+          "min": 0,
+          "max": 1
+        },
+        {
+          "key": "buy_ratio",
+          "label": "购入比例",
+          "type": "number",
+          "defaultValue": 1.0,
+          "step": 0.05,
+          "min": 0,
+          "max": 1
+        }
+      ],
+      "commonEconomicFields": [
+        {
+          "key": "buy_price",
+          "label": "购电价格",
+          "type": "number",
+          "defaultValue": 0.5,
+          "unit": "元/kWh",
+          "step": 0.01,
+          "min": 0
+        },
+        {
+          "key": "sell_price",
+          "label": "售电价格",
+          "type": "number",
+          "defaultValue": 0.4,
+          "unit": "元/kWh",
+          "step": 0.01,
+          "min": 0
+        }
+      ],
+      "layerTechFields": [],
+      "layerEconomicFields": [],
+      "constraintFields": [],
+      "objectiveFields": [
+        {
+          "key": "exchange_objective_on",
+          "label": "启用购售电成本目标",
+          "type": "boolean",
+          "defaultValue": true
+        }
+      ]
+    },
+    "HYDRO": {
+      "backendKey": "HYDRO",
+      "label": "常规水电",
+      "description": "常规水电机组",
+      "category": "power",
+      "group": "power-converter",
+      "tags": [
+        "转换设备",
+        "水电",
+        "可再生"
+      ],
+      "boundaryKey": [
+        "factor",
+        "power"
+      ],
+      "ports": [
+        {
+          "id": "power-out",
+          "side": "right",
+          "direction": "out",
+          "medium": "electric",
+          "offset": 50,
+          "label": "功率输出"
+        }
+      ],
+      "layerStatuses": {
+        "1": [
+          "stand_alone",
+          "disabled"
+        ],
+        "2": [
+          "stand_alone",
+          "disabled"
+        ],
+        "3": [
+          "stand_alone",
+          "disabled"
+        ],
+        "4": [
+          "stand_alone",
+          "disabled"
+        ],
+        "5": [
+          "stand_alone",
+          "disabled"
+        ]
+      },
+      "commonTechFields": [
+        {
+          "key": "capacity",
+          "label": "装机容量",
+          "type": "number",
+          "defaultValue": 100000.0,
+          "unit": "kW",
+          "step": 1000.0,
+          "min": 0.0,
+          "required": true
+        },
+        {
+          "key": "ramp",
+          "label": "爬坡速率",
+          "type": "number",
+          "defaultValue": 0.5,
+          "unit": "%/min",
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        },
+        {
+          "key": "min",
+          "label": "最小出力比例",
+          "type": "number",
+          "defaultValue": 0.1,
+          "step": 0.05,
+          "min": 0.0,
+          "max": 1.0
+        }
+      ],
+      "commonEconomicFields": [
+        {
+          "key": "om_cost",
+          "label": "运维成本",
+          "type": "number",
+          "defaultValue": 0.05,
+          "unit": "元/kWh",
+          "step": 0.01
+        },
+        {
+          "key": "initial_cost",
+          "label": "初始投资",
+          "type": "number",
+          "defaultValue": 6000.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "replace_cost",
+          "label": "更换成本",
+          "type": "number",
+          "defaultValue": 6000.0,
+          "unit": "元/kW",
+          "step": 100.0
+        },
+        {
+          "key": "material_cost",
+          "label": "材料成本",
+          "type": "number",
+          "defaultValue": 0.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manufacturing_cost",
+          "label": "其他制造成本",
+          "type": "number",
+          "defaultValue": 50.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "other_manage_cost",
+          "label": "其他管理成本",
+          "type": "number",
+          "defaultValue": 20.0,
+          "unit": "元/kW",
+          "step": 1.0
+        },
+        {
+          "key": "repair_cost",
+          "label": "维修费率",
+          "type": "number",
+          "defaultValue": 0.015,
+          "step": 0.01,
+          "max": 1.0
+        },
+        {
+          "key": "life_year",
+          "label": "寿命",
+          "type": "number",
+          "defaultValue": 50.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "depreciation_year",
+          "label": "折旧年限",
+          "type": "number",
+          "defaultValue": 50.0,
+          "unit": "年",
+          "step": 1.0,
+          "min": 1.0
+        },
+        {
+          "key": "staff_number",
+          "label": "人员数量",
+          "type": "number",
+          "defaultValue": 80.0,
+          "unit": "人",
+          "step": 1.0
+        }
+      ],
+      "layerTechFields": [],
+      "layerEconomicFields": [],
+      "constraintFields": [
+        {
+          "key": "ramp_constraint_on",
+          "label": "启用爬坡约束",
+          "type": "boolean",
+          "defaultValue": true
+        },
+        {
+          "key": "min_constraint_on",
+          "label": "启用最小出力约束",
+          "type": "boolean",
+          "defaultValue": true
+        }
+      ],
+      "objectiveFields": [
+        {
+          "key": "om_objective_on",
+          "label": "启用运维成本",
+          "type": "boolean",
+          "defaultValue": true
+        }
+      ]
+    },
+    "ELEC_BUS": {
+      "label": "电总线",
+      "description": "电能源总线",
+      "category": "bus",
+      "group": "bus",
+      "tags": [
+        "总线",
+        "electric"
+      ],
+      "ports": [],
+      "layerStatuses": {
+        "1": [
+          "stand_alone"
+        ]
+      },
+      "commonTechFields": [],
+      "commonEconomicFields": [],
+      "layerTechFields": [],
+      "layerEconomicFields": [],
+      "constraintFields": [],
+      "objectiveFields": []
+    },
+    "COLD_BUS": {
+      "label": "冷总线",
+      "description": "冷能源总线",
+      "category": "bus",
+      "group": "bus",
+      "tags": [
+        "总线",
+        "cold"
+      ],
+      "ports": [],
+      "layerStatuses": {
+        "1": [
+          "stand_alone"
+        ]
+      },
+      "commonTechFields": [],
+      "commonEconomicFields": [],
+      "layerTechFields": [],
+      "layerEconomicFields": [],
+      "constraintFields": [],
+      "objectiveFields": []
+    },
+    "THERMAL_BUS": {
+      "label": "热总线",
+      "description": "热能源总线",
+      "category": "bus",
+      "group": "bus",
+      "tags": [
+        "总线",
+        "thermal"
+      ],
+      "ports": [],
+      "layerStatuses": {
+        "1": [
+          "stand_alone"
+        ]
+      },
+      "commonTechFields": [],
+      "commonEconomicFields": [],
+      "layerTechFields": [],
+      "layerEconomicFields": [],
+      "constraintFields": [],
+      "objectiveFields": []
+    },
+    "H2_BUS": {
+      "label": "氢总线",
+      "description": "氢能源总线",
+      "category": "bus",
+      "group": "bus",
+      "tags": [
+        "总线",
+        "hydrogen"
+      ],
+      "ports": [],
+      "layerStatuses": {
+        "1": [
+          "stand_alone"
+        ]
+      },
+      "commonTechFields": [],
+      "commonEconomicFields": [],
+      "layerTechFields": [],
+      "layerEconomicFields": [],
+      "constraintFields": [],
+      "objectiveFields": []
+    },
+    "GAS_BUS": {
+      "label": "气总线",
+      "description": "气能源总线",
+      "category": "bus",
+      "group": "bus",
+      "tags": [
+        "总线",
+        "gas"
+      ],
+      "ports": [],
+      "layerStatuses": {
+        "1": [
+          "stand_alone"
+        ]
+      },
+      "commonTechFields": [],
+      "commonEconomicFields": [],
+      "layerTechFields": [],
+      "layerEconomicFields": [],
+      "constraintFields": [],
+      "objectiveFields": []
+    },
+    "CARBON_BUS": {
+      "label": "碳总线",
+      "description": "碳能源总线",
+      "category": "bus",
+      "group": "bus",
+      "tags": [
+        "总线",
+        "carbon"
+      ],
+      "ports": [],
+      "layerStatuses": {
+        "1": [
+          "stand_alone"
+        ]
+      },
+      "commonTechFields": [],
+      "commonEconomicFields": [],
+      "layerTechFields": [],
+      "layerEconomicFields": [],
+      "constraintFields": [],
+      "objectiveFields": []
+    },
+    "OTHER_BUS": {
+      "label": "其他总线",
+      "description": "其他能源总线",
+      "category": "bus",
+      "group": "bus",
+      "tags": [
+        "总线",
+        "other"
+      ],
+      "ports": [],
+      "layerStatuses": {
+        "1": [
+          "stand_alone"
+        ]
+      },
+      "commonTechFields": [],
+      "commonEconomicFields": [],
+      "layerTechFields": [],
+      "layerEconomicFields": [],
+      "constraintFields": [],
+      "objectiveFields": []
+    }
+  }
+}

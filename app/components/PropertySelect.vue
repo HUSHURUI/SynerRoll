@@ -1,9 +1,15 @@
 <script setup lang="ts">
 const model = defineModel<string | number>({ required: true })
 
-const props = defineProps<{
-  options: Array<{ label: string; value: string | number }>
-}>()
+const props = withDefaults(
+  defineProps<{
+    options: Array<{ label: string; value: string | number }>
+    disabled?: boolean
+  }>(),
+  {
+    disabled: false
+  }
+)
 
 const open = ref(false)
 const triggerRef = ref<HTMLElement>()
@@ -13,6 +19,7 @@ const selectedLabel = computed(() => {
 })
 
 const toggle = () => {
+  if (props.disabled) return
   open.value = !open.value
 }
 
@@ -37,8 +44,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="triggerRef" class="property-select">
-    <button type="button" class="property-select__trigger" @click="toggle">
+  <div ref="triggerRef" class="property-select" :class="{ 'property-select--disabled': disabled }">
+    <button type="button" class="property-select__trigger" :disabled="disabled" @click="toggle">
       <span class="property-select__value">{{ selectedLabel }}</span>
       <svg class="property-select__arrow" :class="{ 'property-select__arrow--open': open }" viewBox="0 0 16 16" fill="none">
         <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
@@ -66,6 +73,11 @@ onUnmounted(() => {
 .property-select {
   position: relative;
   width: 100%;
+}
+
+.property-select--disabled {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .property-select__trigger {

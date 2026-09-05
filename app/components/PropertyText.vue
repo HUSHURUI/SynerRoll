@@ -4,9 +4,11 @@ const model = defineModel<string | number>({ required: true })
 withDefaults(
   defineProps<{
     placeholder?: string
+    disabled?: boolean
   }>(),
   {
     placeholder: '',
+    disabled: false
   }
 )
 </script>
@@ -15,9 +17,11 @@ withDefaults(
   <input
     type="text"
     class="property-text"
+    :class="{ 'property-text--disabled': disabled }"
     :value="model"
     :placeholder="placeholder"
-    @change="model = ($event.target as HTMLInputElement).value"
+    :disabled="disabled"
+    @change="disabled ? null : (model = ($event.target as HTMLInputElement).value)"
   >
 </template>
 
@@ -41,5 +45,11 @@ withDefaults(
 .property-text:focus {
   outline: none;
   border-color: #0a4da2;
+}
+
+.property-text--disabled {
+  background-color: #f5f7fa;
+  color: #86909c;
+  cursor: not-allowed;
 }
 </style>

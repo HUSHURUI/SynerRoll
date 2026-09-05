@@ -19,6 +19,8 @@ import {
   FLEXIBILITY_REQUIREMENT_LABELS,
   FLEXIBILITY_REQUIREMENT_OPTIONS
 } from '~~/config/flexibility'
+import PropertyText from '../../components/PropertyText.vue'
+import PropertySelect from '../../components/PropertySelect.vue'
 
 definePageMeta({ title: '结果分析 - SynerRoll' })
 
@@ -580,13 +582,16 @@ interface CreationBoundarySeriesOption {
   source: 'database' | 'project'
 }
 
+// 仿真模式类型
+type SimulationMode = 'multi_layer' | 'single_layer'
+
 const newTask = reactive({
   projectId: initialProjectId,
   canvasId: initialCanvasId,
   layerId: '1',
-  mode: 'offline' as 'offline' | 'online',
-  simStartTime: '0:00',
-  simEndTime: '24:00',
+  mode: 'offline' as 'offline',
+  simMode: 'multi_layer' as SimulationMode,
+  targetLayerId: '1',
   name: '',
   poiId: '',
   requirementSource: 'net_load_change' as FlexibilityRequirementSource,
@@ -611,6 +616,101 @@ const creationCanvasOptions = computed(() => creationProject.value?.workspace.ca
 const creationLayerOptions = computed(() => creationProject.value?.layerConfig.layers ?? [])
 const creationCanvas = computed(() =>
   creationCanvasOptions.value.find(canvas => canvas.id === newTask.canvasId) ?? creationCanvasOptions.value[0]
+)
+
+// 项目名称
+const creationProjectName = computed(() => creationProject.value?.name ?? '')
+
+// 画布名称
+const creationCanvasName = computed(() => creationCanvas.value?.name ?? '')
+
+// 默认任务名称：项目名称-画布名称（任务ID由后端生成，不参与placeholder）
+const defaultTaskName = computed(() => {
+  const parts = [creationProjectName.value, creationCanvasName.value].filter(Boolean)
+  return parts.join('-') || '未命名任务'
+})
+
+// Layer1的小时数（从layer1.length解析，如"24h" -> 24）
+const layer1Hours = computed(() => {
+  const layer1 = creationLayerOptions.value.find(l => l.id === '1')
+  if (!layer1?.length) return 24
+  const match = /^(\d+)h?$/.exec(layer1.length.trim())
+  return match ? parseInt(match[1], 10) : 24
+})
+
+// 时间范围字符串（格式："0:00-24:00"）
+const timeRange = ref('0:00-24:00')
+
+// 时间范围校验错误
+const timeRangeError = ref('')
+
+// 当项目加载后，用layer1的小时数初始化
+watch(layer1Hours, (val) => {
+  timeRange.value = `0:00-${val}:00`
+}, { immediate: true })
+
+// 校验时间范围格式
+const validateTimeRange = (value: string) => {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    timeRangeError.value = '时间范围不能为空'
+    return false
+  }
+
+  const match = /^(\d{1,2}):(\d{2})\s*[-~]\s*(\d{1,2}):(\d{2})$/.exec(trimmed)
+  if (!match) {
+    timeRangeError.value = '格式错误，请使用 0:00-24:00 格式'
+    return false
+  }
+
+  const startHour = parseInt(match[1], 10)
+  const startMin = parseInt(match[2], 10)
+  const endHour = parseInt(match[3], 10)
+  const endMin = parseInt(match[4], 10)
+
+  if (startMin !== 0 || endMin !== 0) {
+    timeRangeError.value = '分钟必须为 00'
+    return false
+  }
+
+  if (startHour < 0 || endHour < 0) {
+    timeRangeError.value = '小时不能为负数'
+    return false
+  }
+
+  if (endHour <= startHour) {
+    timeRangeError.value = '结束时间必须大于开始时间'
+    return false
+  }
+
+  timeRangeError.value = ''
+  return true
+}
+
+// 解析结束时间的小时数
+const parsedEndHour = computed(() => {
+  const match = /^(\d{1,2}):(\d{2})\s*[-~]\s*(\d{1,2}):(\d{2})$/.exec(timeRange.value.trim())
+  if (!match) return 24
+  return parseInt(match[3], 10)
+})
+
+// 发送给后端的结束时间（格式："X:00"）
+const simEndTime = computed(() => `${parsedEndHour.value}:00`)
+
+// 时间范围变更处理
+const onTimeRangeChange = (value: string) => {
+  timeRange.value = value
+  validateTimeRange(value)
+}
+
+// 画布选项（PropertySelect格式）
+const canvasSelectOptions = computed(() =>
+  creationCanvasOptions.value.map(c => ({ label: c.name, value: c.id }))
+)
+
+// 时层选项（PropertySelect格式）
+const layerSelectOptions = computed(() =>
+  creationLayerOptions.value.map(l => ({ label: `${l.name}（${l.step}）`, value: l.id }))
 )
 
 const finiteGridNumber = (value: unknown, fallback: number): number => {
@@ -658,21 +758,16 @@ const flexibilityEvaluationLayerId = computed(() =>
 const expectedFlexibilityTimestamps = computed<string[]>(() => {
   const layer = flexibilityEvaluationLayer.value
   if (!layer) return []
-  const startMatch = /^(\d+):(\d{1,2})$/.exec(newTask.simStartTime.trim())
-  if (!startMatch || Number(startMatch[2]) >= 60) return []
-  const startMinutes = Number(startMatch[1]) * 60 + Number(startMatch[2])
+  const startMinutes = 0 // 开始时间固定为 0:00
   const stepMinutes = durationToMinutes(layer.step)
   const durationMinutes = durationToMinutes(String(layer.id) === '1' ? layer.length : layer.forward)
   if (!stepMinutes || !durationMinutes || durationMinutes % stepMinutes !== 0) return []
 
-  const endMatch = /^(\d+):(\d{1,2})$/.exec(newTask.simEndTime.trim())
-  const endMinutes = endMatch && Number(endMatch[2]) < 60
-    ? Number(endMatch[1]) * 60 + Number(endMatch[2])
-    : null
+  const endMinutes = parsedEndHour.value * 60 // 结束时间由 parsedEndHour 控制
   const timestamps: string[] = []
   for (let offset = 0; offset < durationMinutes; offset += stepMinutes) {
     const timestampMinutes = startMinutes + offset
-    if (endMinutes !== null && timestampMinutes + stepMinutes > endMinutes) break
+    if (timestampMinutes + stepMinutes > endMinutes) break
     timestamps.push(minutesToTimestamp(timestampMinutes))
   }
   return timestamps
@@ -844,7 +939,18 @@ watch(showCreateDialog, async (open) => {
   if (open) {
     newTask.projectId = initialProjectId || selectedTask.value?.project_id || newTask.projectId
     newTask.canvasId = initialCanvasId || selectedTask.value?.canvas_id || newTask.canvasId
+    newTask.simMode = 'multi_layer'
+    newTask.targetLayerId = '1'
     await loadCreationProject(newTask.projectId)
+    // 设置默认值
+    newTask.name = defaultTaskName.value
+  }
+})
+
+// 当项目或画布变化时更新默认任务名称
+watch([creationProjectName, creationCanvasName], () => {
+  if (showCreateDialog.value) {
+    newTask.name = defaultTaskName.value
   }
 })
 
@@ -944,15 +1050,23 @@ const createTask = async () => {
     push({ tone: 'warning', title: '请填写 projectId' })
     return
   }
+  if (!validateTimeRange(timeRange.value)) {
+    push({ tone: 'warning', title: '时间范围格式错误', description: timeRangeError.value })
+    return
+  }
   try {
     const flexibility = buildFlexibilityTaskConfig()
+    // 单层仿真时使用 targetLayerId，多层仿真时使用 layerId（默认 '1'）
+    const effectiveLayerId = newTask.simMode === 'single_layer' ? newTask.targetLayerId : newTask.layerId
     const res = await taskApi.createTask({
       projectId: newTask.projectId,
       canvasId: newTask.canvasId,
-      layerId: newTask.layerId,
+      layerId: effectiveLayerId,
       mode: newTask.mode,
-      simStartTime: newTask.simStartTime,
-      simEndTime: newTask.simEndTime || null,
+      simMode: newTask.simMode,
+      targetLayerId: newTask.simMode === 'single_layer' ? newTask.targetLayerId : undefined,
+      simStartTime: '0:00',
+      simEndTime: simEndTime.value,
       name: newTask.name || null,
       flexibility
     })
@@ -1031,12 +1145,7 @@ const createTask = async () => {
           <div class="flex items-center justify-between mb-3 pb-3 border-b border-app-border">
             <div>
               <div class="text-sm font-medium">
-                {{ currentProject?.name ?? selectedTask.project_id }}
-                <span v-if="canvasName" class="text-app-muted"> - {{ canvasName }}</span>
-              </div>
-              <div class="text-xs mt-1 text-app-muted">
                 任务: {{ selectedTask.name ?? selectedTask.id.slice(0, 8) }}
-                <span class="ml-2">模式: {{ selectedTask.mode === 'offline' ? '离线' : '在线' }}</span>
               </div>
             </div>
             <div class="flex items-center gap-2">
@@ -1107,66 +1216,43 @@ const createTask = async () => {
             </div>
 
             <div v-else class="space-y-3">
-              <section class="rounded-[12px] border border-app-border bg-app-panel-soft/60 px-4 py-3">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h2 class="text-sm font-semibold text-app-text">评价口径</h2>
-                    <p class="mt-0.5 text-xs text-app-muted">任务配置会随结果保存，便于复核不同算例口径。</p>
-                  </div>
-                  <span class="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">已启用</span>
-                </div>
-                <div class="mt-2 grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-3">
-                  <div class="rounded-lg bg-white px-3 py-1.5">
-                    <div class="text-app-muted">需求来源</div>
-                    <div class="mt-0.5 font-medium text-app-text">{{ FLEXIBILITY_REQUIREMENT_LABELS[flexibilityConfig.requirementSource] ?? flexibilityConfig.requirementSource }}</div>
-                  </div>
-                  <div class="rounded-lg bg-white px-3 py-1.5">
-                    <div class="text-app-muted">网络口径</div>
-                    <div class="mt-0.5 font-medium text-app-text">{{ flexibilityConfig.networkMode === 'islanded' ? '离网本地平衡' : '并网 POI' }}</div>
-                  </div>
-                  <div class="rounded-lg bg-white px-3 py-1.5">
-                    <div class="text-app-muted">{{ flexibilityConfig.networkMode === 'islanded' ? '系统边界' : 'GRID功率边界' }}</div>
-                    <div v-if="flexibilityConfig.networkMode === 'islanded'" class="mt-0.5 font-medium text-app-text">无外部交换，内部资源承担平衡</div>
-                    <div v-else class="mt-0.5 font-medium text-app-text">
-                      {{ flexibilityPoiLimits.minimum == null ? '--' : formatBoundaryPower(flexibilityPoiLimits.minimum) }}
-                      ～
-                      {{ flexibilityPoiLimits.maximum == null ? '--' : formatBoundaryPower(flexibilityPoiLimits.maximum) }}
-                    </div>
-                  </div>
-                </div>
+              <section class="flex items-center gap-6 bg-app-panel-soft/60 px-4 py-2 text-sm">
+                <span class="text-app-muted">需求来源：<span class="font-medium text-app-text">{{ FLEXIBILITY_REQUIREMENT_LABELS[flexibilityConfig.requirementSource] ?? flexibilityConfig.requirementSource }}</span></span>
+                <span class="text-app-muted">网络口径：<span class="font-medium text-app-text">{{ flexibilityConfig.networkMode === 'islanded' ? '离网本地平衡' : '并网POI' }}</span></span>
+                <template v-if="flexibilityConfig.networkMode !== 'islanded'">
+                  <span class="text-app-muted">GRID功率边界：<span class="font-medium text-app-text">{{ flexibilityPoiLimits.minimum == null ? '--' : formatBoundaryPower(flexibilityPoiLimits.minimum) }} ～ {{ flexibilityPoiLimits.maximum == null ? '--' : formatBoundaryPower(flexibilityPoiLimits.maximum) }}</span></span>
+                </template>
+                <template v-else>
+                  <span class="text-app-muted">系统边界：<span class="font-medium text-app-text">无外部交换，内部资源承担平衡</span></span>
+                </template>
+                <span class="ml-auto rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">已启用</span>
               </section>
 
               <section v-if="flexibilityData?.summaries.length" class="grid gap-3 xl:grid-cols-2">
                 <div
                   v-for="direction in FLEXIBILITY_DIRECTIONS"
                   :key="direction"
-                  class="rounded-[12px] border border-app-border bg-white p-4"
+                  class="bg-white border border-app-border p-4"
                 >
                   <div class="mb-3 flex items-center justify-between">
-                    <h3 class="text-sm font-semibold text-app-text">{{ FLEXIBILITY_DIRECTION_LABELS[direction] }}全时域指标</h3>
-                    <span
-                      class="rounded-full px-2 py-1 text-[11px]"
-                      :class="(directionSummary(direction)?.adequate_period_ratio ?? 0) >= 1 ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'"
-                    >
-                      达标 {{ formatFlexPercent(directionSummary(direction)?.adequate_period_ratio) }}
-                    </span>
+                    <h3 class="text-base">{{ FLEXIBILITY_DIRECTION_LABELS[direction] }}全时域指标</h3>
                   </div>
                   <div class="grid grid-cols-2 gap-2 lg:grid-cols-4">
                     <div class="rounded-lg bg-app-panel-soft px-3 py-3">
-                      <div class="text-[11px] text-app-muted">全时域最小裕度</div>
-                      <div class="mt-1 text-base font-semibold text-app-text">{{ formatFlexValue(directionSummary(direction)?.minimum_margin) }} <span class="text-[10px] font-normal text-app-muted">kW</span></div>
+                      <div class="text-sm text-app-muted">全时域最小裕度</div>
+                      <div class="mt-1 text-base font-semibold text-app-text">{{ formatFlexValue(directionSummary(direction)?.minimum_margin) }} <span class="text-xs font-normal text-app-muted">kW</span></div>
                     </div>
                     <div class="rounded-lg bg-app-panel-soft px-3 py-3">
-                      <div class="text-[11px] text-app-muted">最大缺额</div>
-                      <div class="mt-1 text-base font-semibold text-app-text">{{ formatFlexValue(directionSummary(direction)?.maximum_deficit) }} <span class="text-[10px] font-normal text-app-muted">kW</span></div>
+                      <div class="text-sm text-app-muted">最大缺额</div>
+                      <div class="mt-1 text-base font-semibold text-app-text">{{ formatFlexValue(directionSummary(direction)?.maximum_deficit) }} <span class="text-xs font-normal text-app-muted">kW</span></div>
                     </div>
                     <div class="rounded-lg bg-app-panel-soft px-3 py-3">
-                      <div class="text-[11px] text-app-muted">缺额电量</div>
-                      <div class="mt-1 text-base font-semibold text-app-text">{{ formatFlexValue(directionSummary(direction)?.deficit_energy) }} <span class="text-[10px] font-normal text-app-muted">kWh</span></div>
+                      <div class="text-sm text-app-muted">缺额电量</div>
+                      <div class="mt-1 text-base font-semibold text-app-text">{{ formatFlexValue(directionSummary(direction)?.deficit_energy) }} <span class="text-xs font-normal text-app-muted">kWh</span></div>
                     </div>
                     <div class="rounded-lg bg-app-panel-soft px-3 py-3">
-                      <div class="text-[11px] text-app-muted">达标时段比例</div>
-                      <div class="mt-1 text-base font-semibold text-app-text">{{ formatFlexPercent(directionSummary(direction)?.adequate_period_ratio) }}</div>
+                      <div class="text-sm text-app-muted">达标时段比例</div>
+                      <div class="mt-1 text-base font-semibold text-orange-700">{{ formatFlexPercent(directionSummary(direction)?.adequate_period_ratio) }}</div>
                     </div>
                   </div>
                 </div>
@@ -1342,55 +1428,88 @@ const createTask = async () => {
       @close="showCreateDialog = false"
     >
       <div class="space-y-4 px-2 py-1">
-        <section class="rounded-[12px] border border-app-border p-4">
+        <section class="p-2">
           <div class="mb-3">
-            <h3 class="text-sm font-semibold text-app-text">仿真任务设置</h3>
-            <p class="mt-1 text-xs text-app-muted">选择当前建模画布、计算时层和仿真时间范围。</p>
+            <h3 class="text-base text-app-text">仿真任务设置</h3>
           </div>
 
-          <div class="grid gap-3 sm:grid-cols-2">
-            <label class="space-y-1 text-xs text-app-muted">
-              <span>项目 ID</span>
-              <input
-                v-model="newTask.projectId"
-                class="field-input h-8 text-xs"
-                @change="loadCreationProject(newTask.projectId)"
-              >
-            </label>
-            <label class="space-y-1 text-xs text-app-muted">
-              <span>任务名称</span>
-              <input v-model="newTask.name" class="field-input h-8 text-xs" placeholder="可选">
-            </label>
-            <label class="space-y-1 text-xs text-app-muted">
-              <span>建模画布</span>
-              <select v-if="creationCanvasOptions.length" v-model="newTask.canvasId" class="field-input h-8 text-xs">
-                <option v-for="canvas in creationCanvasOptions" :key="canvas.id" :value="canvas.id">{{ canvas.name }}</option>
-              </select>
-              <input v-else v-model="newTask.canvasId" class="field-input h-8 text-xs" placeholder="canvasId">
-            </label>
-            <label class="space-y-1 text-xs text-app-muted">
-              <span>仿真时层</span>
-              <select v-model="newTask.layerId" class="field-input h-8 text-xs">
-                <option v-for="layer in creationLayerOptions" :key="layer.id" :value="layer.id">{{ layer.name }}（{{ layer.step }}）</option>
-                <option v-if="!creationLayerOptions.length" value="1">时层 1</option>
-              </select>
-            </label>
-            <label class="space-y-1 text-xs text-app-muted">
-              <span>运行方式</span>
-              <select v-model="newTask.mode" class="field-input h-8 text-xs">
-                <option value="offline">离线计算（尽快求解）</option>
-                <option value="online">在线计算（按真实时间推进）</option>
-              </select>
-            </label>
-            <div class="grid grid-cols-2 gap-2">
-              <label class="space-y-1 text-xs text-app-muted">
-                <span>开始时间</span>
-                <input v-model="newTask.simStartTime" class="field-input h-8 text-xs" placeholder="0:00">
-              </label>
-              <label class="space-y-1 text-xs text-app-muted">
-                <span>结束时间</span>
-                <input v-model="newTask.simEndTime" class="field-input h-8 text-xs" placeholder="24:00">
-              </label>
+          <div class="space-y-4 border-t border-app-border pt-4">
+            <!-- 项目名称和建模画布在同一行 -->
+            <div class="property-row-double">
+              <div class="flex items-center gap-2 flex-1">
+                <label class="property-label">项目名称</label>
+                <PropertyText
+                  :model-value="creationProjectName"
+                  placeholder=""
+                  :disabled="true"
+                />
+              </div>
+              <div class="flex items-center gap-2 flex-1">
+                <label class="property-label">建模画布</label>
+                <PropertySelect
+                  v-model="newTask.canvasId"
+                  :options="canvasSelectOptions"
+                />
+              </div>
+            </div>
+            <!-- 任务名称 -->
+            <div class="property-row-double">
+              <div class="flex items-center gap-2 flex-1">
+                <label class="property-label">任务名称</label>
+                <PropertyText
+                  v-model="newTask.name"
+                  :placeholder="defaultTaskName"
+                />
+              </div>
+            </div>
+            <!-- 运行方式、开始时间、结束时间在同一行 -->
+            <div class="property-row-double">
+              <div class="flex items-center gap-2 flex-1">
+                <label class="property-label">运行方式</label>
+                <PropertyText
+                  model-value="离线计算"
+                  placeholder=""
+                  :disabled="true"
+                />
+              </div>
+              <div class="flex items-center gap-2 flex-1">
+                <label class="property-label">时间范围</label>
+                <div class="flex-1">
+                  <PropertyText
+                    :model-value="timeRange"
+                    placeholder="0:00-24:00"
+                    @update:model-value="onTimeRangeChange"
+                  />
+                  <p v-if="timeRangeError" class="text-xs text-red-500 mt-1">{{ timeRangeError }}</p>
+                </div>
+              </div>
+            </div>
+            <!-- 仿真时层 -->
+            <div class="property-row-double">
+              <label class="property-label">仿真时层</label>
+              <div class="sim-mode-toggle">
+                <button
+                  type="button"
+                  class="sim-mode-toggle__btn"
+                  :class="newTask.simMode === 'multi_layer' ? 'sim-mode-toggle__btn--active' : ''"
+                  @click="newTask.simMode = 'multi_layer'"
+                >
+                  多层联合
+                </button>
+                <button
+                  type="button"
+                  class="sim-mode-toggle__btn"
+                  :class="newTask.simMode === 'single_layer' ? 'sim-mode-toggle__btn--active' : ''"
+                  @click="newTask.simMode = 'single_layer'"
+                >
+                  单层仿真
+                </button>
+              </div>
+              <PropertySelect
+                v-model="newTask.targetLayerId"
+                :options="layerSelectOptions"
+                :disabled="newTask.simMode === 'multi_layer'"
+              />
             </div>
           </div>
 
@@ -1398,34 +1517,28 @@ const createTask = async () => {
           <p v-else-if="creationProjectError" class="mt-2 text-xs text-app-danger">{{ creationProjectError }}</p>
         </section>
 
-        <section class="rounded-[12px] border border-primary/40 bg-primary-soft/35 p-4">
+        <section class="p-4">
           <div>
-            <div>
-              <div class="flex items-center gap-2">
-                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-lg">↕️</span>
-                <div>
-                  <h3 class="text-sm font-semibold text-app-text">灵活性量化评估</h3>
-                  <p class="mt-0.5 text-xs text-app-muted">在基准仿真后，自动使用项目最底层时层计算上下调供给、需求、裕度和全时域指标。</p>
-                </div>
-              </div>
-            </div>
+            <h3 class="text-base text-app-text">灵活性评价设置</h3>
           </div>
 
           <div class="mt-4 space-y-3 border-t border-primary/15 pt-4">
-            <div class="grid gap-3 sm:grid-cols-2">
-              <label class="space-y-1 text-xs text-app-muted">
-                <span>并网点 POI</span>
-                <select v-model="newTask.poiId" class="field-input h-8 text-xs" :disabled="isIslandedFlexibility">
-                  <option v-if="isIslandedFlexibility" value="">离网系统（无 GRID / POI）</option>
-                  <option v-for="option in creationGridOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                </select>
-              </label>
-              <label class="space-y-1 text-xs text-app-muted">
-                <span>灵活性需求来源</span>
-                <select v-model="newTask.requirementSource" class="field-input h-8 text-xs">
-                  <option v-for="option in availableRequirementOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                </select>
-              </label>
+            <div class="property-row-double">
+              <div class="flex items-center gap-2 flex-1">
+                <label class="property-label">并网点</label>
+                <PropertySelect
+                  v-model="newTask.poiId"
+                  :options="isIslandedFlexibility ? [{ value: '', label: '离网系统（无 GRID / POI）' }] : creationGridOptions.map(o => ({ value: o.value, label: o.label }))"
+                  :disabled="isIslandedFlexibility"
+                />
+              </div>
+              <div class="flex items-center gap-2 flex-1">
+                <label class="property-label">灵活性来源</label>
+                <PropertySelect
+                  v-model="newTask.requirementSource"
+                  :options="availableRequirementOptions.map(o => ({ value: o.value, label: o.label }))"
+                />
+              </div>
             </div>
 
             <div
@@ -1557,3 +1670,60 @@ const createTask = async () => {
     </AppModal>
   </div>
 </template>
+
+<style scoped>
+.property-row-double {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding-inline: 10px;
+}
+
+.property-row-double .property-label {
+  width: 70px;
+  flex-shrink: 0;
+}
+
+.property-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1d2129;
+}
+
+.sim-mode-toggle {
+  display: flex;
+  border: 1px solid #dde1e6;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.sim-mode-toggle__btn {
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1d2129;
+  background: #ffffff;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.sim-mode-toggle__btn:first-child {
+  border-right: 1px solid #dde1e6;
+}
+
+.sim-mode-toggle__btn:hover {
+  background: #f5f7fa;
+}
+
+.sim-mode-toggle__btn--active {
+  background: #0a4da2;
+  color: #ffffff;
+}
+
+.sim-mode-toggle__btn--active:hover {
+  background: #084a9a;
+}
+</style>

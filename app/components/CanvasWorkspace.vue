@@ -69,11 +69,15 @@ interface ActionPayload {
   value?: string | number | boolean
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   canvas: CanvasData
-  selection: CanvasSelection
+  selection?: CanvasSelection
   clipboard?: CanvasClipboard | null
-}>()
+  readonly?: boolean
+}>(), {
+  selection: () => ({ nodeIds: [], edgeIds: [], primaryNodeId: null, primaryEdgeId: null }),
+  readonly: false
+})
 
 const emit = defineEmits<{
   'update:canvas': [canvas: CanvasData]
@@ -1139,7 +1143,14 @@ watch(
         preserveSelection: false,
         selection: props.selection
       })
-      void refreshFlowLayout(props.canvas)
+      void refreshFlowLayout(props.canvas).then(() => {
+        if (props.readonly) {
+          fitBounds(
+            { x: 0, y: 0, width: paperWidth.value, height: paperHeight.value },
+            { padding: PAPER_FRAME_PADDING }
+          )
+        }
+      })
       setTimeout(() => {
         isInitializing.value = false
       }, 100)
@@ -1380,9 +1391,9 @@ defineExpose({
       :connection-line-type="ConnectionLineType.Step"
       :connection-line-style="connectionLineStyle"
       :selection-mode="SelectionMode.Partial"
-      :elements-selectable="true"
-      :nodes-draggable="true"
-      :nodes-connectable="true"
+      :elements-selectable="!props.readonly"
+      :nodes-draggable="!props.readonly"
+      :nodes-connectable="!props.readonly"
       :edges-updatable="false"
       :elevate-edges-on-select="true"
       :pan-on-drag="[1]"
@@ -1410,7 +1421,7 @@ defineExpose({
           :style="paperStyle"
         />
       </template>
-      <Controls 
+      <Controls
         position="top-right"
         :showInteractive=false
       />

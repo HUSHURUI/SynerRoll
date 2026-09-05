@@ -1318,11 +1318,6 @@ watch(() => form.noiseLevel, (newVal) => {
                 @click="importData"
               />
               <AppButton
-                label="预览"
-                tone="primary"
-                @click="rawData = null"
-              />
-              <AppButton
                 label="清除"
                 tone="danger"
                 @click="rawData = null"

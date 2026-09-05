@@ -21,12 +21,12 @@ const increment = () => {
   model.value = model.value + (props.step ?? 1)
 }
 
-// 科学计数法显示：整数部分超过3位时自动转换
+// 科学计数法显示：绝对值 < 0.001 或 >= 1000 时自动转换
 const displayValue = computed(() => {
   const val = model.value
   if (!Number.isFinite(val)) return String(val)
-  if (Math.abs(val) >= 1000) {
-    // 30000 → "3e4", 12345 → "1.2345e4"
+  const abs = Math.abs(val)
+  if (abs !== 0 && (abs < 0.001 || abs >= 1000)) {
     return val.toExponential().replace('e+', 'e').replace(/\.?0+(e)/, '$1')
   }
   return String(val)
@@ -95,7 +95,7 @@ const onInputChange = (e: Event) => {
   flex-shrink: 0;
   border: none;
   border-radius: 4px;
-  margin: 0 6px;
+  margin: 0 4px;
 }
 
 .property-number__btn--left {
@@ -151,8 +151,9 @@ const onInputChange = (e: Event) => {
 
 .property-number__unit {
   flex-shrink: 0;
-  padding-right: 8px;
-  font-size: 14px;
+  padding-right: 4px;
+  padding-left: 2px;
+  font-size: 12px;
   color: #86909C;
 }
 </style>

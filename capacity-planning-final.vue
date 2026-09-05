@@ -18,6 +18,7 @@ import { useProjectApi } from '~~/composables/api/useProjectApi'
 import { useToastCenter } from '~~/state/ui'
 import PropertySwitch from '../../components/PropertySwitch.vue'
 import PropertyNumber from '../../components/PropertyNumber.vue'
+const CanvasWorkspace = defineAsyncComponent(() => import('../../components/CanvasWorkspace.vue'))
 import * as echarts from 'echarts'
 
 definePageMeta({ title: '容量规划 - SynerRoll' })
@@ -119,14 +120,28 @@ const handleSuggestedValueChange = (item: CapacityVariableDraft, value: number) 
   validatedAt.value = ''
 }
 const handleBoundChange = (item: CapacityVariableDraft, field: 'lowerBound' | 'upperBound', value: number) => {
-  const input = { value: String(value) } as unknown as EventTarget & { value: string }
-  updateCapacityBound(item, field, { target: input } as unknown as Event)
+  if (!Number.isFinite(value)) return
+  const gap = capacitySliderStep(item)
+  if (field === 'lowerBound') {
+    item.lowerBound = Math.max(capacitySchemaMin(item), Math.min(value, item.upperBound - gap))
+    item.suggestedValue = Math.max(item.suggestedValue, item.lowerBound)
+  } else {
+    const schemaMaximum = capacitySchemaMax(item)
+    item.upperBound = Math.max(value, item.lowerBound + gap)
+    if (schemaMaximum !== undefined) item.upperBound = Math.min(item.upperBound, schemaMaximum)
+    item.suggestedValue = Math.min(item.suggestedValue, item.upperBound)
+  }
+  validatedAt.value = ''
 }
 const configuredBoundaries = computed(() => project.value?.boundaries ?? [])
 const canvasNodeNameById = computed(() => new Map(
   (project.value?.workspace.canvases.find(canvas => canvas.id === canvasId.value)?.nodes ?? [])
     .map(node => [node.id, node.data.label || node.id])
 ))
+const activeCanvas = computed(() =>
+  project.value?.workspace.canvases.find(canvas => canvas.id === canvasId.value) ?? null
+)
+const canvasPreviewRef = ref<InstanceType<typeof CanvasWorkspace> | null>(null)
 const selectedBoundary = computed(() =>
   configuredBoundaries.value.find(boundary => boundary.id === selectedBoundaryId.value) ?? null
 )
@@ -1208,7 +1223,9 @@ const resizePlanningCharts = () => {
   capacityChangeChart?.resize()
 }
 
-onMounted(() => window.addEventListener('resize', resizePlanningCharts))
+onMounted(() => {
+  window.addEventListener('resize', resizePlanningCharts)
+})
 onBeforeUnmount(() => {
   clearPlanningPoll()
   if (planningLogSequenceTimer) clearTimeout(planningLogSequenceTimer)
@@ -1259,7 +1276,7 @@ useHead(() => ({
             <h1 class="text-lg font-bold text-app-text">容量规划流程</h1>
           </div>
 
-          <nav class="flex-1 overflow-y-auto px-3 py-3" aria-label="容量规划步骤">
+          <nav class="flex-1 overflow-y-auto px-6 py-6" aria-label="容量规划步骤">
             <template v-for="step in planningSteps" :key="step.id">
               <button
                 type="button"
@@ -1288,7 +1305,7 @@ useHead(() => ({
                   </span>
                 </div>
               </button>
-              <div v-if="step.id < 6" class="flex h-12 items-center justify-center text-2xl font-black leading-none text-primary/45">
+              <div v-if="step.id < 6" class="flex h-12 items-center justify-center text-3xl font-black leading-none text-primary/45">
                 ↓
               </div>
             </template>
@@ -1323,28 +1340,41 @@ useHead(() => ({
               <div v-for="warning in schema.warnings" :key="warning" class="rounded-lg border border-app-warning/30 bg-orange-50 px-4 py-3 text-sm text-app-warning">
                 {{ warning }}
               </div>
-
+              <div class="flex items-center justify-between rounded-lg border border-app-border bg-white px-4 py-3">
+                <div class="text-xs text-app-muted">
+                  <span v-if="validatedAt" class="font-semibold text-app-success">✓ 服务端校验通过（{{ validatedAt }}）</span>
+                  <span v-else>容量按设备及物理单位分别优化，修改后需要重新校验。</span>
+                </div>
+                <div class="flex gap-2">
+                  <AppButton label="初步校验配置可行性" tone="neutral" :disabled="loading" @click="loadSchema" />
+                  <AppButton label="校验并进入下一步" tone="primary" :disabled="validating || !formValid" @click="validateAndContinue" />
+                </div>
+              </div>
               <div class="overflow-hidden rounded-lg border border-app-border bg-white">
                 <div class="flex items-center justify-between border-b border-app-border px-5 py-4">
                   <div>
-                    <h3 class="font-semibold text-app-text">容量变量配置</h3>
+                    <h3 class="font-semibold text-app-text">可选设备列表</h3>
                   </div>
-                  <span class="text-xs text-app-muted">参与容量优化/可规划设备：<span class="font-bold text-primary">{{ optimizedCount }}/{{ variables.length }}</span></span>
+                  <span class="text-xs text-app-muted">参与规划 / 可规划设备：<span class="font-bold text-primary">{{ optimizedCount }} / {{ variables.length }}</span></span>
                 </div>
-
-                <div v-if="variables.length" class="overflow-x-auto">
-                  <table class="w-full min-w-[760px] text-center text-sm">
+                <div class="overflow-x-auto">
+                  <table class="w-full min-w-[860px] text-left text-sm">
                     <thead class="bg-app-panel-soft text-sm text-center">
                       <tr>
                         <th class="px-4 py-3 font-medium">设备名称</th>
                         <th class="px-4 py-3 font-medium">设备类型</th>
-                        <th class="px-4 py-3 font-medium w-1/3">变量设置</th>
-                        <th class="px-4 py-3 font-medium w-1/6">参考容量值</th>
+                        <th class="px-4 py-3 font-medium">变量设置</th>
+                        <th class="px-4 py-3 font-medium">参考容量值</th>
                         <th class="px-4 py-3 text-center font-medium">
-                          <label class="inline-flex cursor-pointer items-center gap-1.5">
-                            <span>参与优化</span>
-                            <input type="checkbox" class="h-3.5 w-3.5 cursor-pointer accent-primary" :checked="allOptimized" @change="toggleAllParticipation">
-                          </label>
+                          <span class="inline-flex items-center gap-2">
+                            参与优化
+                            <input
+                              type="checkbox"
+                              class="h-4 w-4 cursor-pointer accent-primary"
+                              :checked="allOptimized"
+                              @change="toggleAllParticipation"
+                            >
+                          </span>
                         </th>
                       </tr>
                     </thead>
@@ -1352,74 +1382,73 @@ useHead(() => ({
                       <tr
                         v-for="item in variables"
                         :key="item.componentId"
-                        class="border-t border-app-border transition-colors"
-                        :class="item.mode === 'optimize' ? 'bg-primary-soft/20' : 'text-app-muted'"
+                        class="border-t transition-colors border-app-border hover:bg-app-panel-soft/70"
                       >
-                        <td class="px-4 py-3">
-                          <div class="truncate text-sm" :class="item.mode === 'optimize' ? 'text-app-text' : 'text-app-muted'">{{ item.componentName }}</div>
-                        </td>
-                        <td class="px-4 py-3 text-xs">{{ item.componentKey }}</td>
-                        <td class="px-4 py-3">
-                          <div v-if="item.mode === 'optimize'" class="flex items-center gap-2">
-                            <div class="shrink-0 w-max">
-                              <PropertyNumber
-                                :model-value="item.lowerBound"
-                                :min="capacitySchemaMin(item)"
-                                :max="item.upperBound - capacitySliderStep(item)"
-                                :step="item.step ?? 'any'"
-                                :unit="item.unit"
-                                label="下界"
-                                @update:model-value="handleBoundChange(item, 'lowerBound', $event)"
-                              />
-                            </div>
-                            <div class="flex-1 min-w-[160px]">
-                              <div class="variable-slider">
-                                <div class="variable-slider__track">
-                                  <div
-                                    class="variable-slider__fill"
-                                    :style="{ width: ((item.suggestedValue - item.lowerBound) / Math.max(item.upperBound - item.lowerBound, 0.0001) * 100) + '%' }"
-                                  />
-                                  <input
-                                    class="variable-slider__range"
-                                    type="range"
-                                    :value="item.suggestedValue"
-                                    :min="item.lowerBound"
-                                    :max="item.upperBound"
-                                    :step="capacitySliderStep(item)"
-                                    aria-label="容量推荐值"
-                                    @input="updateCapacitySuggestion(item, $event)"
-                                  >
+                        <td class="px-4 py-3 text-center">{{ item.componentName }}</td>
+                        <td class="px-4 py-3 text-center">{{ item.componentKey }}</td>
+                        <td class="px-4 py-3 w-1/3">
+                          <template v-if="item.mode === 'optimize'">
+                            <div class="flex items-center gap-3 min-w-[360px]">
+                              <div class="shrink-0 w-max">
+                                <PropertyNumber
+                                  :model-value="item.lowerBound"
+                                  :unit="item.unit"
+                                  :min="capacitySchemaMin(item)"
+                                  :max="item.upperBound - capacitySliderStep(item)"
+                                  :step="capacitySliderStep(item)"
+                                  @update:model-value="handleBoundChange(item, 'lowerBound', $event)"
+                                />
+                              </div>
+                              <div class="flex-1 min-w-[160px]">
+                                <div class="variable-slider">
+                                  <div class="variable-slider__track">
+                                    <div
+                                      class="variable-slider__fill"
+                                      :style="{
+                                        width: ((item.upperBound - item.lowerBound) > 0
+                                          ? ((item.suggestedValue - item.lowerBound) / (item.upperBound - item.lowerBound)) * 100
+                                          : 0) + '%'
+                                      }"
+                                    />
+                                    <input
+                                      type="range"
+                                      class="variable-slider__range"
+                                      :value="item.suggestedValue"
+                                      :min="item.lowerBound"
+                                      :max="item.upperBound"
+                                      :step="capacitySliderStep(item)"
+                                      aria-label="容量推荐值"
+                                      @input="updateCapacitySuggestion(item, $event)"
+                                    >
+                                  </div>
                                 </div>
-                                <span class="variable-slider__unit text-xs text-app-muted">{{ item.unit }}</span>
+                              </div>
+                              <div class="shrink-0 w-max">
+                                <PropertyNumber
+                                  :model-value="item.upperBound"
+                                  :unit="item.unit"
+                                  :min="item.lowerBound + capacitySliderStep(item)"
+                                  :max="capacitySchemaMax(item)"
+                                  :step="capacitySliderStep(item)"
+                                  @update:model-value="handleBoundChange(item, 'upperBound', $event)"
+                                />
                               </div>
                             </div>
-                            <div class="shrink-0 w-max">
-                              <PropertyNumber
-                                :model-value="item.upperBound"
-                                :min="item.lowerBound + capacitySliderStep(item)"
-                                :max="capacitySchemaMax(item)"
-                                :step="item.step ?? 'any'"
-                                :unit="item.unit"
-                                label="上界"
-                                @update:model-value="handleBoundChange(item, 'upperBound', $event)"
-                              />
-                            </div>
-                          </div>
-                          <div v-else class="text-xs text-app-muted">固定为 {{ formatNumber(item.currentValue) }} {{ item.unit }}</div>
+                            <p v-if="variableError(item)" class="mt-1 text-xs text-app-danger">{{ variableError(item) }}</p>
+                          </template>
+                          <span v-else class="text-xs text-[#86909c]">—</span>
                         </td>
-                        <td class="px-4 py-3">
-                          <div v-if="item.mode === 'optimize'" class="w-max mx-auto">
+                        <td class="px-4 py-3 w-1/6">
+                          <div class="w-max mx-auto">
                             <PropertyNumber
                               :model-value="item.suggestedValue"
-                              :min="item.lowerBound"
-                              :max="item.upperBound"
-                              :step="capacitySliderStep(item)"
                               :unit="item.unit"
-                              label="推荐值"
+                              :min="item.mode === 'optimize' ? item.lowerBound : 0"
+                              :max="item.mode === 'optimize' ? item.upperBound : undefined"
+                              :step="capacitySliderStep(item)"
                               @update:model-value="handleSuggestedValueChange(item, $event)"
                             />
                           </div>
-                          <div v-else class="text-center text-xs text-app-muted">—</div>
                         </td>
                         <td class="px-4 py-3 text-center">
                           <PropertySwitch
@@ -1430,110 +1459,111 @@ useHead(() => ({
                       </tr>
                     </tbody>
                   </table>
+                  <div v-if="!variables.length" class="px-6 py-12 text-center text-sm text-app-muted">当前画布没有可规划容量的设备。</div>
                 </div>
-                <div v-else class="px-6 py-12 text-center text-sm text-app-muted">当前画布没有可规划容量的设备。</div>
               </div>
 
-              <div class="flex items-center justify-between rounded-lg border border-app-border bg-white px-4 py-3">
-                <div class="text-xs text-app-muted">
-                  <span v-if="validatedAt" class="font-semibold text-app-success">✓ 服务端校验通过（{{ validatedAt }}）</span>
-                  <span v-else>容量按设备及物理单位分别优化，修改后需要重新校验。</span>
+              <div v-if="activeCanvas" class="overflow-hidden rounded-lg border border-app-border bg-white">
+                <div class="flex items-center justify-between border-b border-app-border px-5 py-3">
+                  <div>
+                    <h3 class="font-semibold text-app-text">画布拓扑预览</h3>
+                  </div>
                 </div>
-                <div class="flex gap-2">
-                  <AppButton label="重新识别设备" tone="neutral" :disabled="loading" @click="loadSchema" />
-                  <AppButton label="校验并进入下一步" tone="primary" :disabled="validating || !formValid" @click="validateAndContinue" />
+                <div class="flex h-[400px] w-full">
+                  <ClientOnly>
+                    <CanvasWorkspace
+                      ref="canvasPreviewRef"
+                      :canvas="activeCanvas"
+                      readonly
+                    />
+                  </ClientOnly>
                 </div>
               </div>
+
+              
             </section>
 
-            <section v-else-if="currentStep === 2" class="space-y-4">
-              <div class="rounded-lg border border-app-border bg-white">
-                <div class="flex items-center justify-between border-b border-app-border px-5 py-4">
+            <section v-else-if=”currentStep === 2” class=”space-y-4”>
+              <div class=”overflow-hidden rounded-lg border border-app-border bg-white”>
+                <div class=”flex items-center justify-between border-b border-app-border px-5 py-4”>
                   <div>
-                    <h3 class="font-semibold text-app-text">边界配置数据</h3>
+                    <h3 class=”font-semibold text-app-text”>边界配置数据</h3>
                   </div>
-                  <span class="text-xs text-app-muted">共 {{ configuredBoundaries.length }} 项</span>
+                  <span class=”text-xs text-app-muted”>共 <span class=”font-bold text-primary”>{{ configuredBoundaries.length }}</span> 项</span>
                 </div>
-                <div class="overflow-x-auto">
-                  <table class="w-full min-w-[760px] text-center text-sm">
-                    <thead class="bg-app-panel-soft text-sm text-center">
+                <div class=”overflow-x-auto”>
+                  <table class=”w-full min-w-[860px] text-left text-sm”>
+                    <thead class=”bg-app-panel-soft text-sm text-center”>
                       <tr>
-                        <th class="px-4 py-3 font-medium">边界名称</th>
-                        <th class="px-4 py-3 font-medium">物理含义</th>
-                        <th class="px-4 py-3 font-medium">数据列</th>
-                        <th class="px-4 py-3 font-medium">时间步长</th>
-                        <th class="px-4 py-3 font-medium">关联设备</th>
-                        <th class="px-4 py-3 font-medium">状态</th>
-                        <th class="px-4 py-3 text-center font-medium">操作</th>
+                        <th class=”px-4 py-3 font-medium”>边界名称</th>
+                        <th class=”px-4 py-3 font-medium”>物理含义</th>
+                        <th class=”px-4 py-3 font-medium”>数据列</th>
+                        <th class=”px-4 py-3 font-medium”>时间步长</th>
+                        <th class=”px-4 py-3 font-medium”>关联设备</th>
+                        <th class=”px-4 py-3 font-medium”>状态</th>
+                        <th class=”px-4 py-3 text-center font-medium”>操作</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr
-                        v-for="boundary in configuredBoundaries"
-                        :key="boundary.id"
-                        class="border-t transition-colors"
-                        :class="selectedBoundaryId === boundary.id
-                          ? 'border-primary/20 bg-primary-soft/80'
-                          : 'border-app-border hover:bg-app-panel-soft/70'"
+                        v-for=”boundary in configuredBoundaries”
+                        :key=”boundary.id”
+                        class=”border-t transition-colors border-app-border hover:bg-app-panel-soft/70”
                       >
-                        <td class="px-4 py-3 font-medium" :class="selectedBoundaryId === boundary.id ? 'text-primary' : 'text-app-text'">{{ boundary.name }}</td>
-                        <td class="px-4 py-3 text-app-text">{{ BOUNDARY_MEANING_LABELS[boundary.meaning] }}</td>
-                        <td class="px-4 py-3 text-app-muted">{{ boundary.columnName || '—' }}</td>
-                        <td class="px-4 py-3 text-app-muted">{{ boundary.timeStep || '—' }}</td>
-                        <td class="max-w-72 px-4 py-3 text-app-muted">
-                          <span class="line-clamp-2" :title="boundaryRelatedDeviceNames(boundary)">{{ boundaryRelatedDeviceNames(boundary) }}</span>
+                        <td class=”px-4 py-3 text-center”>{{ boundary.name }}</td>
+                        <td class=”px-4 py-3 text-center”>{{ BOUNDARY_MEANING_LABELS[boundary.meaning] }}</td>
+                        <td class=”px-4 py-3 text-center text-app-muted”>{{ boundary.columnName || '—' }}</td>
+                        <td class=”px-4 py-3 text-center text-app-muted”>{{ boundary.timeStep || '—' }}</td>
+                        <td class=”max-w-72 px-4 py-3 text-center text-app-muted”>
+                          <span class=”line-clamp-2” :title=”boundaryRelatedDeviceNames(boundary)”>{{ boundaryRelatedDeviceNames(boundary) }}</span>
                         </td>
-                        <td class="px-4 py-3">
-                          <span class="rounded-full px-2.5 py-1 text-xs" :class="boundaryPointCount(boundary) ? 'bg-green-50 text-app-success' : 'bg-app-panel-soft text-app-muted'">
+                        <td class=”px-4 py-3 text-center”>
+                          <span class=”rounded-full px-2.5 py-1 text-xs” :class=”boundaryPointCount(boundary) ? 'bg-green-50 text-app-success' : 'bg-app-panel-soft text-app-muted'”>
                             {{ boundaryPointCount(boundary) ? '已配置' : '待完善' }}
                           </span>
                         </td>
-                        <td class="px-4 py-3 text-center">
-                          <button
-                            type="button"
-                            class="inline-flex h-7 items-center justify-center rounded-md border px-3 text-xs font-medium transition"
-                            :class="boundaryPointCount(boundary)
-                              ? 'border-primary/30 bg-white text-primary hover:bg-primary-soft'
-                              : 'cursor-not-allowed border-app-border bg-app-panel-soft text-app-muted'"
-                            :disabled="!boundaryPointCount(boundary)"
-                            @click="previewBoundary(boundary)"
-                          >
-                            预览
-                          </button>
+                        <td class=”px-4 py-3 text-center”>
+                          <AppButton
+                            label=”预览”
+                            tone=”primary”
+                            size=”sm”
+                            :disabled=”!boundaryPointCount(boundary)”
+                            @click=”previewBoundary(boundary)”
+                          />
                         </td>
                       </tr>
                     </tbody>
                   </table>
-                  <div v-if="!configuredBoundaries.length" class="px-6 py-10 text-center text-sm text-app-muted">当前项目还没有边界配置。</div>
+                  <div v-if=”!configuredBoundaries.length” class=”px-6 py-12 text-center text-sm text-app-muted”>当前项目还没有边界配置。</div>
                 </div>
               </div>
 
-              <div class="rounded-lg border border-app-border bg-white">
-                <div class="flex items-center justify-between border-b border-app-border px-5 py-4">
+              <div class=”rounded-lg border border-app-border bg-white”>
+                <div class=”flex items-center justify-between border-b border-app-border px-5 py-4”>
                   <div>
-                    <h3 class="font-semibold text-app-text">数据预览</h3>
+                    <h3 class=”font-semibold text-app-text”>数据预览</h3>
                   </div>
-                  <span v-if="selectedBoundary" class="rounded-full bg-primary-soft px-3 py-1 text-xs font-medium text-primary">
+                  <span v-if=”selectedBoundary” class=”rounded-full bg-primary-soft px-3 py-1 text-xs font-medium text-primary”>
                     正在预览：{{ selectedBoundary.name }}
                   </span>
                 </div>
 
-                <div v-if="selectedBoundary && selectedBoundaryPreviewData" class="p-4">
-                  <div ref="boundaryPreviewChartRef" class="h-72 w-full" />
+                <div v-if=”selectedBoundary && selectedBoundaryPreviewData” class=”p-4”>
+                  <div ref=”boundaryPreviewChartRef” class=”h-72 w-full” />
                 </div>
 
-                <div v-else class="flex h-72 flex-col items-center justify-center px-6 text-center text-app-muted">
-                  <svg class="mb-3 h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                    <path d="M3 3v18h18M7 16l4-4 4 4 5-6" stroke-linecap="round" stroke-linejoin="round" />
+                <div v-else class=”flex h-72 flex-col items-center justify-center px-6 text-center text-app-muted”>
+                  <svg class=”mb-3 h-10 w-10” viewBox=”0 0 24 24” fill=”none” stroke=”currentColor” stroke-width=”1.5” aria-hidden=”true”>
+                    <path d=”M3 3v18h18M7 16l4-4 4 4 5-6” stroke-linecap=”round” stroke-linejoin=”round” />
                   </svg>
-                  <div class="text-sm font-medium">{{ selectedBoundary ? '该边界暂无可预览数据' : '数据预览为空' }}</div>
-                  <p class="mt-1 text-xs">{{ selectedBoundary ? '请返回边界配置导入并保存数据。' : '点击上方边界数据行中的“预览”查看曲线。' }}</p>
+                  <div class=”text-sm font-medium”>{{ selectedBoundary ? '该边界暂无可预览数据' : '数据预览为空' }}</div>
+                  <p class=”mt-1 text-xs”>{{ selectedBoundary ? '请返回边界配置导入并保存数据。' : '点击上方边界数据行中的”预览”查看曲线。' }}</p>
                 </div>
               </div>
 
-              <div class="flex items-center justify-between">
-                <AppButton label="返回边界配置" tone="neutral" @click="navigateTo('/boundary/' + projectId)" />
-                <AppButton label="确认数据，进入典型场景聚类" tone="primary" :disabled="!activeDataset" @click="confirmBoundaryData" />
+              <div class=”flex items-center justify-between”>
+                <AppButton label=”返回边界配置” tone=”neutral” @click=”navigateTo('/boundary/' + projectId)” />
+                <AppButton label=”确认数据，进入典型场景聚类” tone=”primary” :disabled=”!activeDataset” @click=”confirmBoundaryData” />
               </div>
             </section>
 
@@ -1835,61 +1865,66 @@ useHead(() => ({
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
 }
 
 .variable-slider__track {
   position: relative;
   flex: 1;
   height: 4px;
-  border-radius: 999px;
-  background: #c9d8ec;
+  background: #dde1e6;
+  border-radius: 2px;
+  overflow: visible;
 }
 
 .variable-slider__fill {
   position: absolute;
-  top: 0;
   left: 0;
+  top: 0;
   height: 100%;
-  border-radius: 999px;
-  background: #0A4DA2;
+  background: #0a4da2;
+  border-radius: 2px;
   pointer-events: none;
 }
 
 .variable-slider__range {
   position: absolute;
-  top: -8px;
+  top: 50%;
   left: 0;
   width: 100%;
   height: 20px;
-  margin: 0;
+  transform: translateY(-50%);
   background: transparent;
   cursor: pointer;
+  margin: 0;
+  -webkit-appearance: none;
   appearance: none;
 }
 
 .variable-slider__range::-webkit-slider-thumb {
-  width: 14px;
-  height: 14px;
-  border: 2px solid #0A4DA2;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: #fff;
-  cursor: grab;
-  appearance: none;
+  background: #ffffff;
+  border: 2px solid #0a4da2;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  -webkit-appearance: none;
+  transition: transform 0.15s ease;
+}
+
+.variable-slider__range::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
 }
 
 .variable-slider__range::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border: 2px solid #0A4DA2;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: #fff;
-  cursor: grab;
-}
-
-.variable-slider__unit {
-  flex: none;
-  min-width: 24px;
-  text-align: right;
+  background: #ffffff;
+  border: 2px solid #0a4da2;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
 }
 
 .planning-log-surface {

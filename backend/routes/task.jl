@@ -65,6 +65,10 @@ using UUIDs: uuid4
             return json_error("创建任务后查不到")
         end
 
+        # 将前端传递的仿真模式参数添加到 task 字典
+        task["sim_mode"] = get(body, "simMode", "multi_layer")
+        task["target_layer_id"] = get(body, "targetLayerId", layer_id)
+
         spawn_task(task_id, task)
         return json_success(data = task)
     catch e

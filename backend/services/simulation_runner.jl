@@ -331,6 +331,155 @@ function _evaluate_flexibility_after_solve!(
 end
 
 # ════════════════════════════════════════════════════════════════
+# 单层仿真主函数
+# ════════════════════════════════════════════════════════════════
+
+"""
+    run_single_layer_task(task_id::String, task::Dict)
+
+单层仿真任务协程入口。只求解用户指定的单层，按时间步长(forward)推进。
+与 run_task 的区别：
+1. 不先求解 layer1 制定计划
+2. 只求解指定的目标层
+3. 使用该层的 forward 作为时间步长
+"""
+function run_single_layer_task(task_id::String, task::Dict)
+
+    # ■ 接口逻辑：初始化任务上下文
+    ctx = get_or_create_context(
+        task_id,
+        task["mode"],
+        get(task, "sim_end_time", nothing),
+        joinpath(TASKS_DATA_ROOT, task_id, "timeseries.db")
+    )
+    store_path = ctx.store_path
+    target_layer_id = get(task, "target_layer_id", task["layer_id"])
+    @info "task $(task_id): run_single_layer_task 启动 mode=$(task["mode"]) target_layer=$(target_layer_id) store=$(store_path)"
+    try
+        mode = ctx.mode
+        sim_end = ctx.sim_end_time
+        task_dir = dirname(store_path)
+        mkpath(task_dir)
+
+        # ════════════════════════════════════════════
+        # 阶段 1 — PARSE
+        # ════════════════════════════════════════════
+        parse_result = _parse_phase(ctx, task_id, task_dir)
+        parse_result === nothing && return nothing
+        project_json, component_dicts, connections, algorithms = parse_result
+
+        # ════════════════════════════════════════════
+        # 阶段 2 — BUILD 准备
+        # ════════════════════════════════════════════
+        build_result = _prepare_build_phase(ctx, task_id, project_json, connections)
+        build_result === nothing && return nothing
+        all_layers, nodes = build_result
+
+        # 验证目标层是否存在
+        if !haskey(all_layers, target_layer_id)
+            msg = "目标层 $(target_layer_id) 不存在于项目 layerConfig 中"
+            _fail_task!(ctx, task_id, msg)
+            return nothing
+        end
+
+        # ════════════════════════════════════════════
+        # 阶段 3 — 边界注入
+        # ════════════════════════════════════════════
+        boundary_result = _inject_boundary_phase(ctx, task_id, store_path, task["project_id"], all_layers)
+        boundary_result === nothing && return nothing
+
+        # ════════════════════════════════════════════
+        # 阶段 4 — SOLVING（单层仿真）
+        # ════════════════════════════════════════════
+        @info "task $(task_id): [STEP] 进入 SOLVING 阶段（单层仿真）"
+        update_task_status!(task_id, TASK_SOLVING)
+        broadcast_event(ctx, Dict("type" => "status", "status" => TASK_SOLVING, "taskId" => task_id))
+
+        # ■ 接口逻辑：确定起始时间
+        sim_time = task["sim_start_time"]
+        solved_steps = 0
+
+        # ★═══════════════════════════════════════════════════════════
+        # ★  [数学业务] 单层仿真主循环
+        # ★═══════════════════════════════════════════════════════════
+
+        # ★ [数学业务] 准备
+        target_layer = _extract_layer(component_dicts, all_layers, target_layer_id)
+        if target_layer === nothing
+            msg = "无法提取目标层 $(target_layer_id) 的配置"
+            _fail_task!(ctx, task_id, msg)
+            return nothing
+        end
+
+        # 使用目标层的 forward 作为时间步长
+        layer_forward = get(target_layer, "forward", nothing)
+        if layer_forward === nothing
+            msg = "目标层 $(target_layer_id) 缺少 forward 配置"
+            _fail_task!(ctx, task_id, msg)
+            return nothing
+        end
+        step_min = time_str_to_minutes(layer_forward)
+
+        sim_end_min = sim_end !== nothing ? time_label_to_minutes(sim_end) : nothing
+        code_dir = joinpath(task_dir, "generated")
+        mkpath(code_dir)
+        @info "task $(task_id): [INIT] single_layer=$(target_layer_id) forward=$(layer_forward) sim_time=$(sim_time)"
+
+        # ★ [数学业务] 单层仿真时间推进循环
+        while true
+            # ■ 接口逻辑：检查 pause/cancel 信号
+            sig_result = _check_signals(ctx, task_id, sim_time)
+            sig_result == :cancel && return nothing
+
+            # ■ 接口逻辑：在线模式等真实物理时间
+            wait_result = _wait_for_online_time(ctx, task_id, sim_time, mode)
+            wait_result == :cancel && return nothing
+
+            # ■ 接口逻辑：检查是否到 sim_end
+            if sim_end_min !== nothing
+                if time_label_to_minutes(sim_time) >= sim_end_min
+                    break
+                end
+            end
+
+            # ★ [数学业务] 求解目标层
+            solved_steps = _solve_layer!(ctx, task_id, component_dicts, algorithms, nodes, target_layer, sim_time, store_path, code_dir, solved_steps; all_layers=all_layers)
+            solved_steps === nothing && return nothing
+
+            sleep(0.2) # 必须存在，否则求解速度超过数据库读写速度，会导致前端渲染阻塞
+
+            # ★ [数学业务] 推进 sim_time
+            cur_min = time_label_to_minutes(sim_time)
+            new_min = cur_min + step_min
+            sim_time = minutes_to_time_label(new_min)
+        end
+        # ★═══════════════════════════════════════════════════════════
+        # ★  [数学业务] 单层仿真主循环 — 结束
+        # ★═══════════════════════════════════════════════════════════
+
+        # ════════════════════════════════════════════
+        # 阶段 5 — 完成
+        # ════════════════════════════════════════════
+        update_task_status!(task_id, TASK_COMPLETED)
+        broadcast_event(ctx, Dict("type" => "completed", "taskId" => task_id, "finalTime" => sim_time, "solvedSteps" => solved_steps))
+        remove_context(task_id)
+        return nothing
+
+    catch e
+        bt = catch_backtrace()
+        @error "task $(task_id): 未捕获异常（单层仿真）" exception=(e, bt)
+        msg = "内部错误: $(sprint(showerror, e))"
+        flush(stderr)
+        try
+            _fail_task!(ctx, task_id, msg)
+        catch e2
+            @error "task $(task_id): 错误报告也失败了" exception=e2
+        end
+        return nothing
+    end
+end
+
+# ════════════════════════════════════════════════════════════════
 # 主函数
 # ════════════════════════════════════════════════════════════════
 
@@ -531,8 +680,11 @@ function spawn_task(task_id::String, task::Dict)
         get(task, "sim_end_time", nothing),
         joinpath(TASKS_DATA_ROOT, task_id, "timeseries.db")
     )
+    # 根据 simMode 分发到不同的求解函数
+    sim_mode = get(task, "sim_mode", "multi_layer")
+    solve_func = sim_mode == "single_layer" ? run_single_layer_task : run_task
     jl_task = @async try
-        run_task(task_id, task)
+        solve_func(task_id, task)
     catch e
         bt = catch_backtrace()
         @error "task $(task_id): 协程顶层异常" exception=(e, bt)

@@ -95,6 +95,8 @@ export interface CreateTaskRequest {
   canvasId: string
   layerId: string
   mode: TaskMode
+  simMode?: 'multi_layer' | 'single_layer'
+  targetLayerId?: string
   simStartTime: string
   simEndTime?: string | null
   name?: string | null

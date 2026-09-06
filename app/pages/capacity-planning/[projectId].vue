@@ -180,12 +180,17 @@ const clusteringFeatureOptions = computed(() => {
 const selectedBoundaryPreviewData = computed(() => {
   const boundary = selectedBoundary.value
   if (!boundary) return null
+  // 优先使用中文标签，与边界配置页保持一致
+  const yAxisLabel = BOUNDARY_MEANING_LABELS[boundary.meaning as keyof typeof BOUNDARY_MEANING_LABELS]
+    || boundary.meaning
+    || boundary.rawData?.yAxisLabel
+    || ''
   if (boundary.rawData?.values.length) {
     return {
       values: boundary.rawData.values,
       timestamps: boundary.rawData.timestamps,
       xAxisLabel: boundary.rawData.xAxisLabel || '时间',
-      yAxisLabel: boundary.rawData.yAxisLabel || BOUNDARY_MEANING_LABELS[boundary.meaning]
+      yAxisLabel
     }
   }
 
@@ -195,8 +200,26 @@ const selectedBoundaryPreviewData = computed(() => {
     values: firstLayer.values,
     timestamps: firstLayer.timestamps,
     xAxisLabel: '时间',
-    yAxisLabel: BOUNDARY_MEANING_LABELS[boundary.meaning]
+    yAxisLabel
   }
+})
+
+// 边界预览图表标题
+const boundaryPreviewChartTitle = computed(() => {
+  const boundary = selectedBoundary.value
+  const data = selectedBoundaryPreviewData.value
+  if (!boundary || !data) return ''
+  const pointCount = data.values.length
+  const timeStep = boundary.timeStep || '1h'
+  const stepMatch = /^(\d+)(h|m)$/.exec(timeStep.trim())
+  let stepHours = 1
+  if (stepMatch) {
+    const val = parseInt(stepMatch[1], 10)
+    stepHours = stepMatch[2] === 'h' ? val : val / 60
+  }
+  const totalHours = Math.round(pointCount * stepHours)
+  const days = Math.round(totalHours / 24)
+  return `时间尺度：${timeStep}，数据点：${pointCount}个（${days}天）`
 })
 const activeStep = computed(() => planningSteps.find(item => item.id === currentStep.value) ?? planningSteps[0])
 
@@ -221,12 +244,18 @@ const renderBoundaryPreview = () => {
   boundaryPreviewChart?.dispose()
   boundaryPreviewChart = echarts.init(boundaryPreviewChartRef.value)
   boundaryPreviewChart.setOption({
+    title: {
+      text: boundaryPreviewChartTitle.value,
+      textStyle: { fontSize: 13, fontWeight: 'normal' },
+      left: 'center',
+      top: 5
+    },
     tooltip: { trigger: 'axis' },
     grid: {
       left: '3%',
       right: '3%',
-      top: 24,
-      bottom: 42,
+      top: 35,
+      bottom: '8%',
       containLabel: true
     },
     xAxis: {
@@ -241,15 +270,14 @@ const renderBoundaryPreview = () => {
       type: 'value',
       name: selectedBoundaryPreviewData.value.yAxisLabel,
       nameLocation: 'middle',
-      nameGap: 48
+      nameGap: 40
     },
     series: [{
       name: selectedBoundary.value.name,
       data: selectedBoundaryPreviewData.value.values,
       type: 'line',
-      smooth: true,
+      smooth: false,
       symbol: 'none',
-      sampling: 'lttb',
       lineStyle: { width: 2 },
       itemStyle: { color: '#165DFF' }
     }]
@@ -1828,12 +1856,12 @@ useHead(() => ({
                     <article v-for="(scenario, scenarioIndex) in scenarioPreview.scenarios" :key="scenario.scenarioId" class="overflow-hidden rounded-lg border border-app-border bg-white">
                       <div class="flex items-center justify-between gap-4 border-b border-app-border bg-app-panel-soft px-4 py-3">
                         <div>
-                          <div class="text-sm">典型场景 {{ scenarioIndex + 1 }}</div>
-                          <div class="mt-0.5 text-xs text-app-muted">代表日期 {{ scenario.representativeDate }} · 覆盖 {{ scenario.memberDates.length }} 个自然日</div>
+                          <div class="text-sm ">
+                            场景 {{ scenarioIndex + 1 }} - 代表日期： {{ scenario.representativeDate }}
+                          </div> 
                         </div>
                         <div class="shrink-0 text-right">
-                          <div class="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white">场景加权 {{ (scenario.probability * 100).toFixed(1) }}%</div>
-                          <div class="mt-1 text-xs text-app-muted">权重 {{ formatNumber(scenario.weightDays) }} 天</div>
+                          <div class="rounded-[4px] bg-primary px-3 py-1 text-xs font-semibold text-white">场景加权 {{ (scenario.probability * 100).toFixed(1) }}% / {{ scenario.memberDates.length }} 日</div>
                         </div>
                       </div>
                       <div :ref="element => setScenarioChartRef(scenario.scenarioId, element)" class="h-64 w-full px-2 py-1" />

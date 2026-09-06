@@ -54,6 +54,14 @@ const renameInputEl = ref<HTMLInputElement | null>(null)
 const rawData = ref<BoundaryRawData | null>(null)
 const transformedData = ref<BoundaryTransformedData | null>(null)
 
+// boundary 元信息（长度和尺度）
+const boundaryMeta = ref<{
+  boundaryLength: string
+  boundaryStep: string
+  dayCount: number
+  pointCount: number
+} | null>(null)
+
 // 原始数据图表
 const rawChartRef = ref<HTMLDivElement | null>(null)
 let rawChartInstance: echarts.ECharts | null = null
@@ -803,6 +811,10 @@ async function importData() {
         timestamps: string[]
         xAxisLabel: string
         yAxisLabel: string
+        pointCount: number
+        totalHours: number
+        dayCount: number
+        timeStep: string
       }
       message?: string
     }>('/api/v1/boundary/import', {
@@ -823,9 +835,17 @@ async function importData() {
       yAxisLabel: response.data.yAxisLabel
     }
 
+    // 保存 boundary 元信息
+    boundaryMeta.value = {
+      boundaryLength: `${response.data.totalHours}h`,
+      boundaryStep: response.data.timeStep,
+      dayCount: response.data.dayCount,
+      pointCount: response.data.pointCount,
+    }
+
     await nextTick()
     updateRawChart()
-    console.log('[Boundary] 数据导入成功')
+    console.log('[Boundary] 数据导入成功', boundaryMeta.value)
     push({ tone: 'success', title: '数据导入成功' })
   } catch (err) {
     console.error('[Boundary] 数据导入失败:', err)
@@ -857,7 +877,9 @@ async function transformData() {
         interpolateType: form.interpolateType,
         noiseLevel: form.noiseLevel,
         layerConfig: project.value.layerConfig,
-        projectId: projectId.value
+        projectId: projectId.value,
+        // 传递 boundary 元信息，用于确定转换长度
+        boundaryLength: boundaryMeta.value?.boundaryLength ?? '',
       }
     })
 
@@ -896,7 +918,8 @@ async function submitBoundary() {
   console.log('[Boundary] 提交数据:', {
     meaning: form.meaning,
     relatedComponents: form.relatedComponents,
-    layers: transformedData.value.layers
+    layers: transformedData.value.layers,
+    boundaryMeta: boundaryMeta.value
   })
 
   try {
@@ -909,8 +932,12 @@ async function submitBoundary() {
           values: layer.values,
           timestamps: layer.timestamps,
           meaning: form.meaning,
-          boundaryId: currentBoundary.value!.id
-          // boundaryId 由后端作为 TS 库 source_id 写入；同一 meaning 不同边界互不覆盖
+          boundaryId: currentBoundary.value!.id,
+          // boundary 元信息（所有 layer 共用）
+          boundaryLength: boundaryMeta.value?.boundaryLength ?? '',
+          boundaryStep: boundaryMeta.value?.boundaryStep ?? '',
+          dayCount: boundaryMeta.value?.dayCount ?? 0,
+          pointCount: boundaryMeta.value?.pointCount ?? 0,
         }))
       }
     })
@@ -931,6 +958,22 @@ async function syncBoundariesToNodes() {
   saveCurrentFormToBoundary()
   syncProjectFromBoundaries()
 }
+
+// 计算原始数据图表标题
+const rawChartTitle = computed(() => {
+  if (!rawData.value) return ''
+  const pointCount = rawData.value.values.length
+  // 从 timeStep 解析小时数，如 "1h" -> 1, "15m" -> 0.25
+  const stepMatch = /^(\d+)(h|m)$/.exec(form.timeStep.trim())
+  let stepHours = 1
+  if (stepMatch) {
+    const val = parseInt(stepMatch[1], 10)
+    stepHours = stepMatch[2] === 'h' ? val : val / 60
+  }
+  const totalHours = Math.round(pointCount * stepHours)
+  const days = Math.round(totalHours / 24)
+  return `时间尺度：${form.timeStep}，数据点：${pointCount}个（${days}天）`
+})
 
 // 更新原始数据图表
 function updateRawChart() {
@@ -955,12 +998,21 @@ function updateRawChart() {
 
     rawChartInstance = echarts.init(container)
 
+    // 使用中文label作为纵坐标名称
+    const yAxisName = BOUNDARY_MEANING_LABELS[form.meaning as BoundaryMeaning] || form.meaning || rawData.value!.yAxisLabel
+
     const option = {
+      title: {
+        text: rawChartTitle.value,
+        textStyle: { fontSize: 13, fontWeight: 'normal' },
+        left: 'center',
+        top: 5
+      },
       tooltip: { trigger: 'axis' },
       grid: {
         left: '3%',    // 左侧距离，原默认10%
         right: '3%',   // 右侧距离，原默认10%
-        top: '10%',    // 顶部距离，原默认60px
+        top: 35,       // 顶部距离，为标题留空间
         bottom: '8%', // 底部距离，适配x轴时间标签
         containLabel: true // 关键：所有坐标轴文字都限制在grid内，不会额外撑出空白
       },
@@ -973,14 +1025,14 @@ function updateRawChart() {
       },
       yAxis: {
         type: 'value' as const,
-        name: form.meaning || rawData.value!.yAxisLabel,
+        name: yAxisName,
         nameLocation: 'middle' as const,
         nameGap: 40
       },
       series: [{
         data: rawData.value!.values,
         type: 'line' as const,
-        smooth: true,
+        smooth: false,
         symbol: 'none',
         lineStyle: { width: 2 },
         itemStyle: { color: '#165DFF' }
@@ -997,6 +1049,12 @@ function updateTransformedChart() {
   if (!transformedData.value) return
 
   nextTick(() => {
+    // SSR 环境下 document 不存在，跳过
+    if (typeof document === 'undefined') return
+
+    // 使用中文label作为纵坐标名称
+    const yAxisName = BOUNDARY_MEANING_LABELS[form.meaning as BoundaryMeaning] || form.meaning || rawData.value?.yAxisLabel || ''
+
     // 为每一层渲染独立的图表
     for (const layer of transformedData.value!.layers) {
       const el = document.getElementById(`layer-chart-${layer.layerId}`)
@@ -1030,14 +1088,14 @@ function updateTransformedChart() {
         },
         yAxis: {
           type: 'value',
-          name: form.meaning || rawData.value?.yAxisLabel || '',
+          name: yAxisName,
           nameLocation: 'middle',
           nameGap: 40
         },
         series: [{
           data: layer.values,
           type: 'line',
-          smooth: true,
+          smooth: false,
           symbol: 'none',
           lineStyle: { width: 2 },
           itemStyle: { color: '#165DFF' }

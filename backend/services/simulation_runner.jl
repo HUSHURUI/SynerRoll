@@ -114,14 +114,23 @@ end
 # ════════════════════════════════════════════════════════════════
 
 """
-    _inject_boundary_phase(ctx, task_id, store_path, project_id, all_layers)
+    _inject_boundary_phase(ctx, task_id, store_path, project_id, all_layers; sim_start_time, sim_end_time)
 
 执行边界注入阶段：seed 边界数据到时序数据库。
+基于 max_layer 的尺度生成唯一一组边界数据，按仿真时间范围截断。
 返回 true（成功）或 nothing（失败时）。
 """
-function _inject_boundary_phase(ctx, task_id::String, store_path::String, project_id::String, all_layers::Dict{String,Any})
+function _inject_boundary_phase(
+    ctx, task_id::String, store_path::String, project_id::String, all_layers::Dict{String,Any};
+    sim_start_time::Union{String,Nothing}=nothing,
+    sim_end_time::Union{String,Nothing}=nothing,
+)
     try
-        n = seed_task_boundary_data(task_id, project_id, get_max_layer_id(all_layers))
+        n = seed_task_boundary_data(
+            task_id, project_id, get_max_layer_id(all_layers);
+            sim_start_time=sim_start_time,
+            sim_end_time=sim_end_time,
+        )
         # 确保 timeseries.db 始终存在（即使 seed 没找到数据）
         get_store(store_path)
         @info "task $task_id: seeded $n boundary series"
@@ -385,7 +394,11 @@ function run_single_layer_task(task_id::String, task::Dict)
         # ════════════════════════════════════════════
         # 阶段 3 — 边界注入
         # ════════════════════════════════════════════
-        boundary_result = _inject_boundary_phase(ctx, task_id, store_path, task["project_id"], all_layers)
+        boundary_result = _inject_boundary_phase(
+            ctx, task_id, store_path, task["project_id"], all_layers;
+            sim_start_time=get(task, "sim_start_time", nothing),
+            sim_end_time=get(task, "sim_end_time", nothing),
+        )
         boundary_result === nothing && return nothing
 
         # ════════════════════════════════════════════
@@ -530,7 +543,11 @@ function run_task(task_id::String, task::Dict)
         # ════════════════════════════════════════════
         # 阶段 3 — 边界注入
         # ════════════════════════════════════════════
-        boundary_result = _inject_boundary_phase(ctx, task_id, store_path, task["project_id"], all_layers)
+        boundary_result = _inject_boundary_phase(
+            ctx, task_id, store_path, task["project_id"], all_layers;
+            sim_start_time=get(task, "sim_start_time", nothing),
+            sim_end_time=get(task, "sim_end_time", nothing),
+        )
         boundary_result === nothing && return nothing
 
         # ════════════════════════════════════════════
@@ -545,7 +562,8 @@ function run_task(task_id::String, task::Dict)
         solved_steps = 0
 
         # ★═══════════════════════════════════════════════════════════
-        # ★  [数学业务] 分层滚动构建主循环
+        # ★  [数学业务] 分层窗口滚动主循环
+        # ★  layer1 按 length 窗口推进，每个窗口内下层按 forward 滚动
         # ★═══════════════════════════════════════════════════════════
 
         # ★ [数学业务] 准备
@@ -556,80 +574,107 @@ function run_task(task_id::String, task::Dict)
         sim_end_min = sim_end !== nothing ? time_label_to_minutes(sim_end) : nothing
         code_dir = joinpath(task_dir, "generated")
         mkpath(code_dir)
-        @info "task $(task_id): [INIT] all_layers=$(length(all_layers)) global_forward=$(global_forward) sim_time=$(sim_time)"
 
-        # ★ [数学业务] 第一步：构建+求解第1层 at sim_time
         layer1 = _extract_layer(component_dicts, all_layers, "1")
-        if layer1 !== nothing
-            solved_steps = _solve_layer!(ctx, task_id, component_dicts, algorithms, nodes, layer1, sim_time, store_path, code_dir, solved_steps; all_layers=all_layers)
-            solved_steps === nothing && return nothing
-            append!(
-                flexibility_margins,
-                _evaluate_flexibility_after_solve!(
-                    ctx,
-                    task_id,
-                    component_dicts,
-                    layer1,
-                    sim_time,
-                    sim_end,
-                    store_path,
-                    flexibility_config,
-                ),
-            )
-        end
+        layer1_length_min = layer1 !== nothing ? time_str_to_minutes(layer1["length"]) : nothing
 
-        # ★ [数学业务] 滚动循环：从 sim_time 向前推进
+        @info "task $(task_id): [INIT] all_layers=$(length(all_layers)) global_forward=$(global_forward) sim_time=$(sim_time) layer1_length=$(layer1_length_min !== nothing ? layer1_length_min : "N/A")min"
+
+        # ★ [数学业务] 外层循环：遍历 layer1 窗口
         while true
-            # ■ 接口逻辑：检查 pause/cancel 信号
-            sig_result = _check_signals(ctx, task_id, sim_time)
-            sig_result == :cancel && return nothing
-            sig_result == :pause && return nothing
-
-            # ■ 接口逻辑：在线模式等真实物理时间
-            wait_result = _wait_for_online_time(ctx, task_id, sim_time, mode)
-            wait_result == :cancel && return nothing
-            wait_result == :pause && return nothing
-
-            # ■ 接口逻辑：检查是否到 sim_end
-            if sim_end_min !== nothing
-                if time_label_to_minutes(sim_time) >= sim_end_min
+            # ★ [数学业务] 检查剩余时间是否足够一个完整窗口
+            if layer1 !== nothing && layer1_length_min !== nothing
+                window_end_min = time_label_to_minutes(sim_time) + layer1_length_min
+                if sim_end_min !== nothing && window_end_min > sim_end_min
+                    @info "task $(task_id): [END] 剩余时间不足一个 layer1 窗口，仿真结束"
                     break
                 end
+            else
+                # 没有 layer1 时，整个仿真范围作为一个窗口
+                window_end_min = sim_end_min
             end
 
-            # ★ [数学业务] 遍历所有后续层，按 is_time_divisible 决定是否构建+求解
-            for lid in layer_ids
-                flayer = _extract_layer(component_dicts, all_layers, lid)
-                flayer === nothing && continue
-                fwd = get(flayer, "forward", nothing)
-                fwd === nothing && continue
-                if is_time_divisible(sim_time, fwd)
-                    solved_steps = _solve_layer!(ctx, task_id, component_dicts, algorithms, nodes, flayer, sim_time, store_path, code_dir, solved_steps; all_layers=all_layers)
-                    solved_steps === nothing && return nothing
-                    append!(
-                        flexibility_margins,
-                        _evaluate_flexibility_after_solve!(
-                            ctx,
-                            task_id,
-                            component_dicts,
-                            flayer,
-                            sim_time,
-                            sim_end,
-                            store_path,
-                            flexibility_config,
-                        ),
-                    )
+            # ■ 接口逻辑：检查 cancel 信号
+            sig_result = _check_signals(ctx, task_id, sim_time)
+            sig_result == :cancel && return nothing
+
+            # ★ [数学业务] 求解 layer1（当前窗口起点）
+            if layer1 !== nothing
+                solved_steps = _solve_layer!(ctx, task_id, component_dicts, algorithms, nodes, layer1, sim_time, store_path, code_dir, solved_steps; all_layers=all_layers)
+                solved_steps === nothing && return nothing
+                append!(
+                    flexibility_margins,
+                    _evaluate_flexibility_after_solve!(
+                        ctx,
+                        task_id,
+                        component_dicts,
+                        layer1,
+                        sim_time,
+                        sim_end,
+                        store_path,
+                        flexibility_config,
+                    ),
+                )
+            end
+
+            # ★ [数学业务] 内层循环：在当前窗口内滚动下层
+            inner_sim_time = sim_time
+            while true
+                # ★ [数学业务] 检查是否到达窗口终点
+                if window_end_min !== nothing && time_label_to_minutes(inner_sim_time) >= window_end_min
+                    break
                 end
+
+                # ■ 接口逻辑：检查 cancel 信号
+                sig_result = _check_signals(ctx, task_id, inner_sim_time)
+                sig_result == :cancel && return nothing
+
+                # ■ 接口逻辑：在线模式等真实物理时间
+                wait_result = _wait_for_online_time(ctx, task_id, inner_sim_time, mode)
+                wait_result == :cancel && return nothing
+
+                # ★ [数学业务] 遍历所有后续层，按 is_time_divisible 决定是否构建+求解
+                for lid in layer_ids
+                    flayer = _extract_layer(component_dicts, all_layers, lid)
+                    flayer === nothing && continue
+                    fwd = get(flayer, "forward", nothing)
+                    fwd === nothing && continue
+                    if is_time_divisible(inner_sim_time, fwd)
+                        solved_steps = _solve_layer!(ctx, task_id, component_dicts, algorithms, nodes, flayer, inner_sim_time, store_path, code_dir, solved_steps; all_layers=all_layers)
+                        solved_steps === nothing && return nothing
+                        append!(
+                            flexibility_margins,
+                            _evaluate_flexibility_after_solve!(
+                                ctx,
+                                task_id,
+                                component_dicts,
+                                flayer,
+                                inner_sim_time,
+                                sim_end,
+                                store_path,
+                                flexibility_config,
+                            ),
+                        )
+                    end
+                end
+
+                sleep(0.2) # 必须存在，否则求解速度超过数据库读写速度，会导致前端渲染阻塞
+
+                # ★ [数学业务] 推进内层 sim_time
+                cur_min = time_label_to_minutes(inner_sim_time)
+                new_min = cur_min + global_step_min
+                inner_sim_time = minutes_to_time_label(new_min)
             end
 
-            sleep(0.2) # 必须存在，否则求解速度超过数据库读写速度，会导致前端渲染阻塞
-            # ★ [数学业务] 推进 sim_time
-            cur_min = time_label_to_minutes(sim_time)
-            new_min = cur_min + global_step_min
-            sim_time = minutes_to_time_label(new_min)
+            # ★ [数学业务] 窗口完成，推进到下一个 layer1 窗口
+            if layer1 !== nothing && layer1_length_min !== nothing
+                sim_time = minutes_to_time_label(time_label_to_minutes(sim_time) + layer1_length_min)
+            else
+                break
+            end
         end
         # ★═══════════════════════════════════════════════════════════
-        # ★  [数学业务] 分层滚动求解主循环 — 结束
+        # ★  [数学业务] 分层窗口滚动主循环 — 结束
         # ★═══════════════════════════════════════════════════════════
 
         # ════════════════════════════════════════════

@@ -17,7 +17,6 @@ let chart: echarts.ECharts | null = null
 let resizeObserver: ResizeObserver | null = null
 
 const DAY_MINUTES = 24 * 60
-const HOURLY_TICKS = Array.from({ length: 25 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`)
 const rangeStartMinutes = ref(0)
 const rangeEndMinutes = ref(DAY_MINUTES)
 
@@ -79,8 +78,19 @@ const sliderStepMinutes = computed(() => {
   return Math.min(...steps, 5)
 })
 
+/** 滑杆最大值：取数据中最晚时间戳，向上取整到整刻钟，兜底 DAY_MINUTES */
+const sliderMax = computed(() => {
+  let maxMinute = 0
+  for (const row of props.rows) {
+    const ts = toMinutes(row.timestamp)
+    let next = toMinutes(row.next_timestamp)
+    if (next <= ts) next += DAY_MINUTES
+    if (next > maxMinute) maxMinute = next
+  }
+  return maxMinute > 0 ? Math.ceil(maxMinute / 15) * 15 : DAY_MINUTES
+})
+
 const formatMinutes = (minutes: number): string => {
-  if (minutes >= DAY_MINUTES) return '24:00'
   const hour = Math.floor(minutes / 60)
   const minute = minutes % 60
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
@@ -201,7 +211,11 @@ const render = () => {
       type: 'category',
       data: timeline,
       boundaryGap: false,
-      axisLabel: { fontSize: 10, hideOverlap: true },
+      axisLabel: {
+        fontSize: 8,
+        rotate: 45,
+        interval: Math.max(0, Math.floor(timeline.length / 12))
+      },
       axisLine: { lineStyle: { color: '#D0D5DD' } }
     },
     yAxis: {
@@ -226,6 +240,12 @@ const render = () => {
     replaceMerge: ['series']
   })
 }
+
+// 数据变化时，把范围收拢到有效区间内（immediate 确保首次加载也同步）
+watch(sliderMax, (max) => {
+  if (rangeEndMinutes.value > max) rangeEndMinutes.value = max
+  if (rangeStartMinutes.value > max) rangeStartMinutes.value = 0
+}, { immediate: true })
 
 watch(
   [() => JSON.stringify(props.rows), () => props.direction, rangeStartMinutes, rangeEndMinutes],
@@ -303,7 +323,7 @@ onBeforeUnmount(() => {
         :start="rangeStartMinutes"
         :end="rangeEndMinutes"
         :min="0"
-        :max="DAY_MINUTES"
+        :max="sliderMax"
         :step="sliderStepMinutes"
         :format-label="formatMinutes"
         @update:start="updateRangeStart"

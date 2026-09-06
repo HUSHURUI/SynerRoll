@@ -6,63 +6,53 @@ using SHA
 using Statistics
 using TimeZones
 
-# ───── 数据读取：从 TS 库读取边界数据 ─────
+# ───── 数据读取与预处理 ─────
 
 """
-    load_ts_boundary_features(project_id, feature_ids) -> (metadata, feature_points)
+    load_ts_boundary_features(project_id, feature_ids, all_boundary_ids) -> (metadata, processed_data, warnings)
 
-从项目级 boundary.db 的 TS 库读取边界数据。
-返回 metadata（含 resolutionMinutes, timezone, contentHash, series）和
-feature_points（Dict{boundary_id => Vector{(timestamp, value)}}）。
+从 boundary.db 读取并预处理边界数据。
+- 如果 feature_ids 为空，自动从 boundary.db 获取所有有数据的边界ID
+- 以最短的 boundaryLength 为准，截断到24h的倍数
+- 先截断再统一尺度到1h
+
+返回：
+- metadata: 包含 series 信息的元数据
+- processed_data: Dict{boundary_id => Vector{Float64}} （1h尺度的数据）
+- warnings: 提示信息
 """
-function load_ts_boundary_features(project_id::String, feature_ids::Vector{String})
-    isempty(feature_ids) && error("至少选择一个聚类特征")
+function load_ts_boundary_features(
+    project_id::String,
+    feature_ids::Vector{String},
+    all_boundary_ids::Vector{String},
+)
+    # 始终处理所有边界（特征+跟随），确保后续能提取完整数据
+    isempty(all_boundary_ids) && error("项目 $(project_id) 没有配置任何边界")
 
+    # 验证特征边界ID存在于项目中
+    for fid in feature_ids
+        fid in all_boundary_ids || error("边界 $(fid) 不存在于项目中")
+    end
+
+    # 调用预处理函数，始终处理所有边界
+    prepared = prepare_boundaries_for_clustering(project_id, all_boundary_ids)
+
+    # 构建 metadata：从 time_series_meta 读取 var_name
     db_path = joinpath(BACKEND_DATA_DIR, "projects", project_id, "boundary.db")
-    isfile(db_path) || error("项目边界数据库不存在: $(db_path)")
-
     store = get_store(db_path)
-    feature_points = Dict{String,Vector{Tuple{String,Float64}}}()
+
     series_info = Dict{String,Any}[]
-
     lock(store.write_lock) do
-        for boundary_id in feature_ids
+        for fid in all_boundary_ids
             meta_rows = _query(store.db, """
-                SELECT id, var_name, layer_id FROM time_series_meta
-                WHERE source_id=? AND remark='planned' AND layer_id='1'
-            """, [boundary_id])
-
-            if isempty(meta_rows[1])
-                # 回退：尝试任意 layer_id
-                meta_rows = _query(store.db, """
-                    SELECT id, var_name, layer_id FROM time_series_meta
-                    WHERE source_id=? AND remark='planned'
-                    ORDER BY CAST(layer_id AS INTEGER) ASC LIMIT 1
-                """, [boundary_id])
-            end
-
-            isempty(meta_rows[1]) && error("TS 库中未找到边界 $(boundary_id) 的数据")
-
-            series_id = Int(meta_rows[1][1])
-            var_name = String(meta_rows[2][1])
-            layer_id = String(meta_rows[3][1])
-
-            data_rows = _query(store.db,
-                "SELECT ts, value FROM time_series_data WHERE series_id=?",
-                [series_id])
-
-            isempty(data_rows[1]) && error("边界 $(boundary_id) 没有时序数据点")
-
-            timestamps = Vector{String}(data_rows[1])
-            values = Vector{Float64}(data_rows[2])
-            perm = sortperm(timestamps; lt=time_label_less_than)
-            sorted_ts = timestamps[perm]
-            sorted_vals = values[perm]
-
-            feature_points[boundary_id] = [(t, v) for (t, v) in zip(sorted_ts, sorted_vals)]
-
+                SELECT var_name, layer_id FROM time_series_meta
+                WHERE source_id=? AND remark='planned'
+                ORDER BY CAST(layer_id AS INTEGER) ASC LIMIT 1
+            """, [fid])
+            var_name = isempty(meta_rows[1]) ? fid : String(meta_rows[1][1])
+            layer_id = isempty(meta_rows[2]) ? "1" : String(meta_rows[2][1])
             push!(series_info, Dict{String,Any}(
-                "boundaryId" => boundary_id,
+                "boundaryId" => fid,
                 "name" => var_name,
                 "meaning" => var_name,
                 "unit" => "",
@@ -71,115 +61,19 @@ function load_ts_boundary_features(project_id::String, feature_ids::Vector{Strin
         end
     end
 
-    # 从数据点数推断分辨率
-    first_count = length(feature_points[first(feature_ids)])
-    resolution_min = if first_count >= 288
-        5
-    elseif first_count >= 96
-        15
-    else
-        60
-    end
-
     metadata = Dict{String,Any}(
         "id" => "ts-$(project_id)",
-        "name" => "项目边界数据（TS库）",
-        "resolutionMinutes" => resolution_min,
+        "name" => "项目边界数据",
+        "resolutionMinutes" => 60,
         "timezone" => "Asia/Shanghai",
-        "contentHash" => bytes2hex(SHA.sha256(Vector{UInt8}(codeunits(join(feature_ids, ","))))),
+        "contentHash" => bytes2hex(SHA.sha256(Vector{UInt8}(codeunits(join(all_boundary_ids, ","))))),
         "series" => series_info,
     )
 
-    return metadata, feature_points
-end
-
-# ───── 数据预处理 ─────
-
-"""
-    _preprocess_boundaries(feature_points, feature_ids) -> (processed, points_per_day, day_count)
-
-验证边界数据长度（≥24h），截断到24h的倍数，统一重采样到1h分辨率。
-返回处理后的 Dict{boundary_id => Vector{Float64}}（1h分辨率）、每天点数、天数。
-"""
-function _preprocess_boundaries(
-    feature_points::Dict{String,Vector{Tuple{String,Float64}}},
-    feature_ids::Vector{String},
-)
-    # 1. 推断原始分辨率
-    first_points = feature_points[first(feature_ids)]
-    raw_count = length(first_points)
-    raw_resolution = if raw_count >= 288
-        5
-    elseif raw_count >= 96
-        15
-    else
-        60
-    end
-
-    # 2. 验证所有边界长度一致
-    for fid in feature_ids
-        length(feature_points[fid]) == raw_count ||
-            error("边界 $(fid) 数据点数 ($(length(feature_points[fid]))) 与首个边界 ($(raw_count)) 不一致")
-    end
-
-    # 3. 验证至少24h
-    total_hours = raw_count * raw_resolution / 60
-    total_hours >= 24 || error("边界数据不足24小时（当前 $(round(total_hours; digits=1))h），请补充数据")
-
-    # 4. 截断到24h的倍数
-    points_per_day = 1440 ÷ 60  # 1h分辨率下每天24点
-    day_count = floor(Int, total_hours / 24)
-    truncate_count = day_count * (60 ÷ raw_resolution) * 24  # 原始分辨率下的截断点数
-
-    # 5. 重采样到1h分辨率（使用 parse_boundary_data）
-    processed = Dict{String,Vector{Float64}}()
-    layer = Dict{String,Any}("length" => "$(day_count * 24)h", "step" => "1h")
-
-    for fid in feature_ids
-        raw_values = Float64[Float64(v) for (_, v) in feature_points[fid][1:truncate_count]]
-        ts = parse_boundary_data(
-            Vector{Any}(raw_values),
-            "$(raw_resolution)m",
-            layer;
-            start_time="0:00",
-            interpolate_type="linear",
-        )
-        processed[fid] = ts.values
-    end
-
-    return processed, points_per_day, day_count
+    return metadata, prepared["data"], prepared["warnings"]
 end
 
 # ───── 辅助函数 ─────
-
-function _fill_missing_day(values::Vector{Union{Nothing,Float64}})
-    known = findall(value -> value !== nothing, values)
-    isempty(known) && error("典型场景没有任何有效数据点")
-    result = Vector{Float64}(undef, length(values))
-
-    for index in eachindex(values)
-        if values[index] !== nothing
-            result[index] = values[index]::Float64
-            continue
-        end
-
-        previous = findlast(known_index -> known_index < index, known)
-        following = findfirst(known_index -> known_index > index, known)
-        if previous === nothing
-            result[index] = values[known[following]]::Float64
-        elseif following === nothing
-            result[index] = values[known[previous]]::Float64
-        else
-            left_index = known[previous]
-            right_index = known[following]
-            left = values[left_index]::Float64
-            right = values[right_index]::Float64
-            ratio = (index - left_index) / (right_index - left_index)
-            result[index] = left + (right - left) * ratio
-        end
-    end
-    return result
-end
 
 function _normalize_scenario_matrix!(
     matrix::Matrix{Float64},
@@ -239,46 +133,22 @@ function _pairwise_squared_distances(matrix::Matrix{Float64})
     return distances
 end
 
-# ───── 加噪补齐 ─────
-
-"""
-    _augment_with_noise(days, feature_ids, points_per_day, need_count, seed)
-
-当天数不足时，通过加噪生成补充天数。
-"""
-function _augment_with_noise(
-    day_values::Dict{String,Dict{String,Vector{Float64}}},
-    feature_ids::Vector{String},
-    points_per_day::Int,
-    need_count::Int,
-    seed::Int,
-)
-    rng = MersenneTwister(seed)
-    source_keys = collect(keys(day_values))
-    augmented = Dict{String,Dict{String,Vector{Float64}}}[]
-
-    for i in 1:need_count
-        source_key = source_keys[rand(rng, 1:length(source_keys))]
-        source_data = day_values[source_key]
-        feature_data = Dict{String,Vector{Float64}}()
-        for fid in feature_ids
-            original = source_data[fid]
-            noise_scale = std(original) * 0.05  # 5% 的标准差作为噪声
-            noise = randn(rng, length(original)) .* noise_scale
-            feature_data[fid] = abs.(original .+ noise)  # 取绝对值避免负值
-        end
-        push!(augmented, Dict{String,Dict{String,Vector{Float64}}}("augmented-$(i)" => feature_data))
-    end
-
-    return augmented
-end
-
 # ───── 主函数 ─────
 
 """
     reduce_boundary_scenarios(config) -> Dict
 
-从 TS 库读取边界数据，预处理后执行聚类，返回典型场景。
+从 boundary.db 读取边界数据，预处理后执行聚类，返回典型场景。
+
+config 字段：
+- projectId: 项目ID（必填）
+- featureIds: 聚类特征边界ID数组（可选，为空时使用所有边界）
+- clusterCount: 场景数（必填，但会被限制为可用天数）
+- algorithm: "kmeans" 或 "kmedoids"（默认 "kmeans"）
+- normalize: "zscore"、"minmax" 或 "none"（默认 "zscore"）
+- missingDayThreshold: 缺失天数阈值（0~1，默认 0.05）
+- seed: 随机种子（默认 20260828）
+- representative: 代表场景选择方式（默认 "nearest-observation"）
 """
 function reduce_boundary_scenarios(config::AbstractDict)
     project_id = string(get(config, "projectId", ""))
@@ -292,41 +162,50 @@ function reduce_boundary_scenarios(config::AbstractDict)
     representative = string(get(config, "representative", "nearest-observation"))
 
     isempty(project_id) && error("缺少 projectId")
-    isempty(feature_ids) && error("缺少 featureIds")
     algorithm in ("kmeans", "kmedoids") || error("algorithm 只能是 kmeans 或 kmedoids")
     0.0 <= missing_threshold <= 1.0 || error("missingDayThreshold 必须在 0 到 1 之间")
     representative == "nearest-observation" || error("MVP 仅支持 nearest-observation 代表场景")
 
-    # 1. 从 TS 库读取数据
-    metadata, feature_points = load_ts_boundary_features(project_id, feature_ids)
+    # 1. 获取所有边界ID
+    all_boundary_ids = get_all_boundary_ids(project_id)
+    isempty(all_boundary_ids) && error("项目 $(project_id) 没有配置任何边界")
 
-    # 2. 预处理：验证、截断、重采样到1h
-    processed, points_per_day, day_count = _preprocess_boundaries(feature_points, feature_ids)
+    # 2. 读取并预处理边界数据
+    metadata, processed_data, preprocess_warnings = load_ts_boundary_features(
+        project_id, feature_ids, all_boundary_ids
+    )
 
     warnings = String[]
+    append!(warnings, preprocess_warnings)
     timezone = TimeZone(String(metadata["timezone"]))
 
+    # 确定实际使用的边界ID（特征边界）
+    actual_feature_ids = isempty(feature_ids) ? all_boundary_ids : feature_ids
+    # 跟随边界：all_boundary_ids 中不在 feature_ids 中的
+    follow_ids = setdiff(all_boundary_ids, actual_feature_ids)
+
     # 3. 按24h切分为天
+    points_per_day = 24  # 1h分辨率
+    first_data = first(values(processed_data))
+    day_count = length(first_data) ÷ points_per_day
+
     day_data = Dict{String,Dict{String,Vector{Float64}}}()
     for day_index in 1:day_count
         day_label = "day-$(day_index)"
         day_slices = Dict{String,Vector{Float64}}()
-        for fid in feature_ids
+        for bid in keys(processed_data)
             start_idx = (day_index - 1) * points_per_day + 1
             end_idx = day_index * points_per_day
-            day_slices[fid] = processed[fid][start_idx:end_idx]
+            day_slices[bid] = processed_data[bid][start_idx:end_idx]
         end
         day_data[day_label] = day_slices
     end
 
     # 4. 处理天数与场景数的关系
     if day_count < cluster_count
-        # 天数不足：加噪补齐
-        push!(warnings, "原始数据仅 $(day_count) 天，不足 $(cluster_count) 个场景，已通过加噪补齐")
-        augmented = _augment_with_noise(day_data, feature_ids, points_per_day, cluster_count - day_count, seed)
-        for noisy_day in augmented
-            merge!(day_data, noisy_day)
-        end
+        # 天数不足：限制场景数为可用天数，发出警告
+        push!(warnings, "原始数据仅 $(day_count) 天，不足 $(cluster_count) 个场景，将限制场景数为 $(day_count)")
+        cluster_count = day_count
     end
 
     all_day_keys = sort(collect(keys(day_data)))
@@ -335,10 +214,10 @@ function reduce_boundary_scenarios(config::AbstractDict)
     2 <= cluster_count <= length(valid_days) ||
         error("clusterCount 必须在 2 到有效天数 $(length(valid_days)) 之间")
 
-    # 5. 构建聚类矩阵
-    raw_matrix = Matrix{Float64}(undef, points_per_day * length(feature_ids), length(valid_days))
+    # 5. 构建聚类矩阵（仅使用特征边界）
+    raw_matrix = Matrix{Float64}(undef, points_per_day * length(actual_feature_ids), length(valid_days))
     for (day_index, day_key) in enumerate(valid_days)
-        for (feature_index, fid) in enumerate(feature_ids)
+        for (feature_index, fid) in enumerate(actual_feature_ids)
             row_range = ((feature_index-1)*points_per_day+1):(feature_index*points_per_day)
             raw_matrix[row_range, day_index] = day_data[day_key][fid]
         end
@@ -347,7 +226,7 @@ function reduce_boundary_scenarios(config::AbstractDict)
     # 6. 归一化
     normalized_matrix = copy(raw_matrix)
     normalization = _normalize_scenario_matrix!(
-        normalized_matrix, feature_ids, points_per_day, normalize, warnings
+        normalized_matrix, actual_feature_ids, points_per_day, normalize, warnings
     )
     # 7. 聚类
     result = if algorithm == "kmeans"
@@ -391,13 +270,19 @@ function reduce_boundary_scenarios(config::AbstractDict)
         representative_day = valid_days[representative_index]
         weight_days = length(member_indices)
 
+        # 提取所有边界的数据（特征+跟随）
+        all_series = Dict{String,Vector{Float64}}()
+        for bid in all_boundary_ids
+            all_series[bid] = day_data[representative_day][bid]
+        end
+
         push!(scenario_records, Dict{String,Any}(
             "representativeDate" => representative_day,
             "weightDays" => weight_days,
             "probability" => weight_days / length(valid_days),
             "memberDates" => valid_days[member_indices],
             "distanceToCenter" => result.costs[representative_index],
-            "series" => Dict{String,Vector{Float64}}(fid => day_data[representative_day][fid] for fid in feature_ids),
+            "series" => all_series,
         ))
     end
     sort!(scenario_records; by=item -> item["representativeDate"])
@@ -407,7 +292,7 @@ function reduce_boundary_scenarios(config::AbstractDict)
 
     # 9. 质量统计
     weighted_mean_error = Dict{String,Any}()
-    for fid in feature_ids
+    for fid in actual_feature_ids
         original_mean = mean(vcat([day_data[dk][fid] for dk in valid_days]...))
         representative_mean = sum(
             mean(item["series"][fid]) * item["weightDays"] for item in scenario_records
@@ -421,7 +306,7 @@ function reduce_boundary_scenarios(config::AbstractDict)
     end
 
     scenario_hash_payload = Dict(
-        "featureIds" => feature_ids,
+        "featureIds" => actual_feature_ids,
         "clusterCount" => cluster_count,
         "algorithm" => algorithm,
         "normalize" => normalize,
@@ -434,7 +319,9 @@ function reduce_boundary_scenarios(config::AbstractDict)
         "scenarioSetHash" => scenario_set_hash,
         "dataset" => metadata,
         "config" => Dict(
-            "featureIds" => feature_ids,
+            "featureIds" => actual_feature_ids,
+            "followIds" => follow_ids,
+            "allBoundaryIds" => all_boundary_ids,
             "resolutionMinutes" => 60,
             "clusterCount" => cluster_count,
             "algorithm" => algorithm,
@@ -446,7 +333,6 @@ function reduce_boundary_scenarios(config::AbstractDict)
         "scenarios" => scenario_records,
         "quality" => Dict(
             "validDayCount" => day_count,
-            "augmentedDayCount" => length(valid_days) - day_count,
             "excludedDayCount" => 0,
             "sse" => result.totalcost,
             "iterations" => result.iterations,

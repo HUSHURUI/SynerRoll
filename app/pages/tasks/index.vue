@@ -684,6 +684,11 @@ const validateTimeRange = (value: string) => {
     return false
   }
 
+  if ((endHour - startHour) % 24 !== 0) {
+    timeRangeError.value = '时间范围必须是24小时的整数倍'
+    return false
+  }
+
   timeRangeError.value = ''
   return true
 }

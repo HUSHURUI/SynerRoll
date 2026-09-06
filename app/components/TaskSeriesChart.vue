@@ -97,8 +97,7 @@ const render = () => {
     xAxis: {
       type: 'value',
       min: 0,
-      max: 1440,
-      interval: 60,
+      interval: 'auto',
       axisLabel: {
         fontSize: 9,
         formatter: (v: number) => minutesToLabel(v)

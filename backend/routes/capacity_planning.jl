@@ -35,52 +35,6 @@ end
     end
 end
 
-@post "/api/capacity-planning/datasets/import" function (req)
-    try
-        body = JSON3.read(req.body, Dict)
-        data = import_boundary_dataset(body)
-        return json_success(data = data)
-    catch e
-        return json_error("导入历史边界数据集失败: $(sprint(showerror, e))")
-    end
-end
-
-@get "/api/capacity-planning/datasets" function (req)
-    try
-        params = request_query_params(req)
-        project_id = string(get(params, "projectId", ""))
-        isempty(project_id) && return json_error("缺少 projectId")
-        datasets = list_boundary_datasets(project_id)
-        return json_success(data = Dict("datasets" => datasets))
-    catch e
-        return json_error("查询历史边界数据集失败: $(sprint(showerror, e))")
-    end
-end
-
-@get "/api/capacity-planning/datasets/{id}" function (req, id)
-    try
-        params = request_query_params(req)
-        project_id = string(get(params, "projectId", ""))
-        isempty(project_id) && return json_error("缺少 projectId")
-        data = get_boundary_dataset(project_id, String(id))
-        return json_success(data = data)
-    catch e
-        return json_error("查询历史边界数据集详情失败: $(sprint(showerror, e))")
-    end
-end
-
-@delete "/api/capacity-planning/datasets/{id}" function (req, id)
-    try
-        params = request_query_params(req)
-        project_id = string(get(params, "projectId", ""))
-        isempty(project_id) && return json_error("缺少 projectId")
-        delete_boundary_dataset!(project_id, String(id))
-        return json_success(data = Dict("datasetId" => String(id)))
-    catch e
-        return json_error("删除历史边界数据集失败: $(sprint(showerror, e))")
-    end
-end
-
 @post "/api/capacity-planning/scenarios/preview" function (req)
     try
         body = JSON3.read(req.body, Dict)

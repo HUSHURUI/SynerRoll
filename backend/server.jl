@@ -39,7 +39,7 @@ begin
     include("utils/flexibility_utils.jl")
 
     # 容量规划存储和服务模块（依赖 utils 中的 get_store/_query/_exec）
-    include("services/capacity_planning/boundary_dataset_service.jl")
+
 
     # 服务模块（需在utils和components之前加载，prediction_utils.jl依赖TimeSeries）
     include("services/boundary_service.jl")
@@ -230,7 +230,8 @@ end
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 1.5. 边界导入服务  POST /api/boundary/import
-# 接收文件路径、列名等信息，读取CSV文件并返回原始数据
+# 接收文件路径、列名等信息，读取CSV文件并返回截断后的数据
+# 截断到24h的倍数（最少24h）
 # ══════════════════════════════════════════════════════════════════════════════
 @post "/api/boundary/import" function (req)
     try
@@ -241,18 +242,20 @@ end
         time_step = optional_string(body, "timeStep", "1h")
 
         col_data, _ = read_csv_column(file_path, column_name)
-        values = extract_float_column(col_data)
+        raw_values = extract_float_column(col_data)
 
-        # 用现有的 generate_timestamps(time, step, length)：length 取 N*step 分钟
-        # 即可得到 N 个点，首点 0:00、末点 (N-1)*step。
-        total_minutes = length(values) * time_str_to_minutes(time_step)
-        timestamps = generate_timestamps("0:00", time_step, "$(total_minutes)m")
+        # 调用预处理函数：截断到24h的倍数
+        result = preprocess_boundary_data(Vector{Any}(raw_values), time_step)
 
         return json_success(data=Dict(
-            "values" => values,
-            "timestamps" => timestamps,
+            "values" => result["values"],
+            "timestamps" => result["timestamps"],
             "xAxisLabel" => "时间",
             "yAxisLabel" => column_name,
+            "pointCount" => result["pointCount"],
+            "totalHours" => result["totalHours"],
+            "dayCount" => result["dayCount"],
+            "timeStep" => result["timeStep"],
         ))
     catch e
         return json_error("导入异常: $(sprint(showerror, e))")
@@ -263,6 +266,7 @@ end
 # 1.6. 边界转换服务  POST /api/boundary/transform
 # 按 filePath 读取本地文件，转换为各层的时间序列后返回
 # 不查库也不入库，结果通过 submit 正式写入 TS 库
+# 如果提供 boundaryLength，则使用它作为转换长度，否则使用 layer1 的长度
 # ══════════════════════════════════════════════════════════════════════════════
 @post "/api/boundary/transform" function (req)
     try
@@ -274,6 +278,7 @@ end
         interpolate_type = optional_string(body, "interpolateType", "copy")
         noise_level = get(body, "noiseLevel", 0.0)
         layer_config = get(body, "layerConfig", nothing)
+        boundary_length = optional_string(body, "boundaryLength", "")
 
         layer_config === nothing && error("缺少 layerConfig")
 
@@ -284,7 +289,8 @@ end
         isempty(layers_array) && error("layerConfig.layers 不能为空")
 
         # length 在所有层间共享，从 layers_array[1] 读出（已加空数组保护）
-        first_length = get(layers_array[1], "length", nothing)
+        # 如果提供了 boundary_length，则使用它
+        first_length = isempty(boundary_length) ? get(layers_array[1], "length", nothing) : boundary_length
         first_length === nothing && error("layers[1] 缺少 length 字段")
 
         result_layers = []
@@ -298,7 +304,8 @@ end
                     "step" => layer_info["step"]
                 );
                 interpolate_type=interpolate_type,
-                noise_level=Float64(noise_level)
+                noise_level=Float64(noise_level),
+                boundary_length=isempty(boundary_length) ? nothing : boundary_length,
             )
 
             push!(result_layers, Dict(
@@ -317,7 +324,7 @@ end
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 2. 边界提交服务  POST /api/boundary/submit
-# 将前端计算好的转换后数据写入 TS 库
+# 将前端计算好的转换后数据写入 TS 库，同时存储 boundary 元信息
 # ══════════════════════════════════════════════════════════════════════════════
 @post "/api/boundary/submit" function (req)
     try
@@ -357,6 +364,24 @@ end
             label = "$(boundary_id)|$(meaning)|planned#$(layer_id)"
             set_ts(db_path, label, ts)
             push!(stored_keys, label)
+        end
+
+        # 存储 boundary 元信息（长度和尺度）
+        # 从 boundaries 中提取第一个 boundary 的元信息（所有 layer 共用）
+        if !isempty(boundaries)
+            first_boundary = boundaries[1]
+            bid = optional_string(first_boundary, "boundaryId", "")
+            if !isempty(bid)
+                boundary_length = optional_string(first_boundary, "boundaryLength", "")
+                boundary_step = optional_string(first_boundary, "boundaryStep", "")
+                day_count = get(first_boundary, "dayCount", 0)
+                point_count = get(first_boundary, "pointCount", 0)
+
+                if !isempty(boundary_length) && !isempty(boundary_step)
+                    save_boundary_config(db_path, bid, boundary_length, boundary_step, day_count, point_count)
+                    @info "boundary config saved: bid=$bid length=$boundary_length step=$boundary_step"
+                end
+            end
         end
 
         return json_success(

@@ -396,36 +396,6 @@ end
 # ───── 典型场景时序数据（per-task scenarios.db） ─────
 
 """
-    save_scenario_series!(planning_id, scenario_id, boundary_id, values)
-
-保存单个典型场景的单条边界时序数据 (24小时)。
-values 应为长度 24 的向量，索引对应 hour 0-23。
-数据存储在 cp-{id}/scenarios.db 中。
-"""
-function save_scenario_series!(planning_id::String, scenario_id::String, boundary_id::String, values::AbstractVector)
-    length(values) == 24 || error("典型场景时序数据长度必须为 24，当前为 $(length(values))")
-    db, store_lock = get_scenario_store(planning_id)
-    lock(store_lock) do
-        _exec(db, "BEGIN IMMEDIATE")
-        try
-            _exec(db, "DELETE FROM scenario_series WHERE scenario_id=? AND boundary_id=?",
-                (scenario_id, boundary_id))
-            for (index, value) in enumerate(values)
-                _exec(db, """
-                    INSERT INTO scenario_series (scenario_id, boundary_id, hour, value)
-                    VALUES (?, ?, ?, ?)
-                """, (scenario_id, boundary_id, index - 1, Float64(value)))
-            end
-            _exec(db, "COMMIT")
-        catch
-            try _exec(db, "ROLLBACK") catch end
-            rethrow()
-        end
-    end
-    return nothing
-end
-
-"""
     save_scenario_set_series!(planning_id, scenarios)
 
 批量保存所有典型场景的时序数据到 cp-{id}/scenarios.db。
@@ -463,29 +433,6 @@ function save_scenario_set_series!(planning_id::String, scenarios::AbstractVecto
 end
 
 """
-    get_scenario_series(planning_id, scenario_id, boundary_id) -> Vector{Float64}
-
-从 cp-{id}/scenarios.db 获取单个场景的单条边界时序数据。
-"""
-function get_scenario_series(planning_id::String, scenario_id::String, boundary_id::String)
-    db, store_lock = get_scenario_store(planning_id)
-    return lock(store_lock) do
-        rows = _query(db, """
-            SELECT hour, value FROM scenario_series
-            WHERE scenario_id=? AND boundary_id=?
-            ORDER BY hour
-        """, (scenario_id, boundary_id))
-        isempty(rows.hour) && return Float64[]
-        result = zeros(24)
-        for index in eachindex(rows.hour)
-            hour = Int(rows.hour[index])
-            0 <= hour <= 23 && (result[hour + 1] = Float64(rows.value[index]))
-        end
-        return result
-    end
-end
-
-"""
     get_scenario_set_series(planning_id) -> Dict
 
 从 cp-{id}/scenarios.db 获取任务的所有典型场景时序数据。
@@ -515,17 +462,4 @@ function get_scenario_set_series(planning_id::String)
         end
         return result
     end
-end
-
-"""
-    delete_scenario_series!(planning_id)
-
-删除 cp-{id}/scenarios.db 中的所有场景时序数据。
-"""
-function delete_scenario_series!(planning_id::String)
-    db, store_lock = get_scenario_store(planning_id)
-    lock(store_lock) do
-        _exec(db, "DELETE FROM scenario_series")
-    end
-    return nothing
 end

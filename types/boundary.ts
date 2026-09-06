@@ -55,6 +55,13 @@ export interface BoundaryItem {
   transformedData?: {
     layers: { layerId: string; layerName: string; values: number[]; timestamps: string[] }[]
   }
+  // boundary 元信息（长度和尺度）
+  boundaryMeta?: {
+    boundaryLength: string
+    boundaryStep: string
+    dayCount: number
+    pointCount: number
+  }
 }
 
 // 边界数据（原始导入数据）

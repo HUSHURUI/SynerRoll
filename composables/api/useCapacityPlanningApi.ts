@@ -79,6 +79,15 @@ export const useCapacityPlanningApi = () => {
       `/capacity-planning?projectId=${encodeURIComponent(projectId)}`
     )
 
+  const updatePlanningConfig = (planningId: string, config: { clustering?: Partial<ClusteringConfig>; variables?: CapacityVariableDraft[] }) =>
+    apiClient.mutate<CapacityPlanningTask>(
+      `/capacity-planning/${encodeURIComponent(planningId)}/config`,
+      {
+        method: 'PUT',
+        body: config
+      }
+    )
+
   const applyAndSimulate = (planningId: string, request: ApplyCapacityPlanningRequest) =>
     apiClient.mutate<ApplyCapacityPlanningResult>(
       `/capacity-planning/${encodeURIComponent(planningId)}/apply-and-simulate`,
@@ -101,6 +110,7 @@ export const useCapacityPlanningApi = () => {
     getPlanning,
     getPlanningResult,
     listPlannings,
+    updatePlanningConfig,
     applyAndSimulate
   }
 }

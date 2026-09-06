@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import type {
-  BoundaryDataset,
-  BoundaryDatasetSummary,
   ApplyCapacityPlanningResult,
   CapacityPlanningResult,
   CapacityPlanningStatus,
@@ -35,9 +33,6 @@ const loading = ref(true)
 const validating = ref(false)
 const errorMessage = ref('')
 const validatedAt = ref('')
-const datasets = ref<BoundaryDatasetSummary[]>([])
-const selectedDatasetId = ref('')
-const activeDataset = ref<BoundaryDataset | null>(null)
 const datasetLoading = ref(false)
 const datasetError = ref('')
 const scenarioPreview = ref<ScenarioPreviewResult | null>(null)
@@ -48,6 +43,33 @@ const planningError = ref('')
 const applyResult = ref<ApplyCapacityPlanningResult | null>(null)
 const applyingResult = ref(false)
 const currentStep = ref(1)
+
+// ───── 任务管理 ─────
+const showTaskListDialog = ref(false)
+const showCreateTaskDialog = ref(false)
+const taskList = ref<CapacityPlanningTask[]>([])
+const taskListLoading = ref(false)
+const selectedTaskId = ref<string | null>(null)
+
+// 新建任务表单
+const newTaskForm = reactive({
+  name: '',
+  canvasId: canvasId.value || ''
+})
+const creatingTask = ref(false)
+
+// 画布选项
+const canvasOptions = computed(() => {
+  const canvases = project.value?.workspace?.canvases ?? []
+  return canvases.map(c => ({ value: c.id, label: c.name }))
+})
+
+// 默认任务名称
+const defaultTaskName = computed(() => {
+  const projectName = schema.value?.projectName || project.value?.name || ''
+  const canvasName = project.value?.workspace?.canvases.find(c => c.id === newTaskForm.canvasId)?.name || ''
+  return [projectName, canvasName, '容量规划'].filter(Boolean).join('-')
+})
 const objectiveConfirmed = ref(false)
 const contentScroller = ref<HTMLElement | null>(null)
 const selectedBoundaryId = ref('')
@@ -131,28 +153,28 @@ const selectedBoundary = computed(() =>
   configuredBoundaries.value.find(boundary => boundary.id === selectedBoundaryId.value) ?? null
 )
 const clusteringFeatureOptions = computed(() => {
-  const series = activeDataset.value?.series ?? []
-  const singles = series.map((item) => {
+  const boundaries = configuredBoundaries.value
+  const singles = boundaries.map((item) => {
     const label = item.meaning === 'wind_speed'
       ? '单风速'
       : item.meaning === 'irradiance'
         ? '单光伏'
         : `单${boundaryMeaningLabel(item.meaning) || item.name}`
     return {
-      key: `single:${item.boundaryId}`,
+      key: `single:${item.id}`,
       label,
       description: item.name,
-      featureIds: [item.boundaryId]
+      featureIds: [item.id]
     }
   })
-  const wind = series.find(item => item.meaning === 'wind_speed')
-  const photovoltaic = series.find(item => item.meaning === 'irradiance')
+  const wind = boundaries.find(item => item.meaning === 'wind_speed')
+  const photovoltaic = boundaries.find(item => item.meaning === 'irradiance')
   if (!wind || !photovoltaic) return singles
   return [{
-    key: `coupled:${wind.boundaryId}:${photovoltaic.boundaryId}`,
+    key: `coupled:${wind.id}:${photovoltaic.id}`,
     label: '风光耦合',
     description: `${wind.name} + ${photovoltaic.name}`,
-    featureIds: [wind.boundaryId, photovoltaic.boundaryId]
+    featureIds: [wind.id, photovoltaic.id]
   }, ...singles]
 })
 const selectedBoundaryPreviewData = computed(() => {
@@ -177,16 +199,6 @@ const selectedBoundaryPreviewData = computed(() => {
   }
 })
 const activeStep = computed(() => planningSteps.find(item => item.id === currentStep.value) ?? planningSteps[0])
-const completedStepIds = computed(() => {
-  const completed = new Set<number>()
-  if (validatedAt.value) completed.add(1)
-  if (activeDataset.value) completed.add(2)
-  if (scenarioPreview.value) completed.add(3)
-  if (objectiveConfirmed.value || planningTask.value) completed.add(4)
-  if (planningResult.value) completed.add(5)
-  if (applyResult.value?.projectApplied) completed.add(6)
-  return completed
-})
 
 const boundaryPointCount = (boundary: Project['boundaries'][number]) =>
   boundary.rawData?.values.length
@@ -354,15 +366,36 @@ const selectStep = (stepId: number) => {
   currentStep.value = Math.min(6, Math.max(1, stepId))
 }
 
-const confirmBoundaryData = () => {
-  if (!activeDataset.value) {
+const confirmBoundaryData = async () => {
+  if (configuredBoundaries.value.length === 0) {
     push({
       tone: 'warning',
-      title: '尚无可用的历史边界数据快照',
+      title: '尚无可用的边界数据',
       description: '请先在边界配置中完善并保存历史边界数据。'
     })
     return
   }
+
+  // 如果有选中的任务，更新任务的聚类配置
+  if (selectedTaskId.value) {
+    try {
+      await planningApi.updatePlanningConfig(selectedTaskId.value, {
+        clustering: {
+          featureIds: [...clustering.featureIds],
+          clusterCount: Number(clustering.clusterCount),
+          algorithm: clustering.algorithm,
+          normalize: clustering.normalize,
+          missingDayThreshold: Number(clustering.missingDayThreshold),
+          seed: Number(clustering.seed),
+          representative: 'nearest-observation'
+        }
+      })
+    }
+    catch (error) {
+      console.warn('[CapPlan] Failed to update clustering config:', error)
+    }
+  }
+
   currentStep.value = 3
 }
 
@@ -462,7 +495,7 @@ const formValid = computed(() =>
 )
 
 const canPreviewScenarios = computed(() =>
-  Boolean(activeDataset.value)
+  configuredBoundaries.value.length > 0
   && clustering.featureIds.length > 0
   && clustering.clusterCount >= 2
   && clustering.missingDayThreshold >= 0
@@ -489,7 +522,7 @@ const optimizerValid = computed(() =>
   && Number(optimizer.failurePenalty) > 0
 )
 const planningPrerequisitesReady = computed(() =>
-  Boolean(project.value && schema.value && activeDataset.value && scenarioPreview.value && objectiveConfirmed.value)
+  Boolean(project.value && schema.value && configuredBoundaries.value.length > 0 && scenarioPreview.value && objectiveConfirmed.value)
   && formValid.value
 )
 const canStartPlanning = computed(() =>
@@ -555,10 +588,10 @@ const planningPrerequisiteEntries = computed(() => {
     },
     {
       title: '历史边界数据配置完毕',
-      detail: activeDataset.value
-        ? `${activeDataset.value.name}，${activeDataset.value.seriesCount} 条边界，${formatNumber(activeDataset.value.pointCount)} 个时序点`
-        : '尚未选择历史边界数据',
-      state: (activeDataset.value ? 'done' : 'pending') as PlanningLogState
+      detail: configuredBoundaries.value.length > 0
+        ? `${configuredBoundaries.value.length} 条边界已配置`
+        : '尚未配置边界数据',
+      state: (configuredBoundaries.value.length > 0 ? 'done' : 'pending') as PlanningLogState
     },
     {
       title: '典型场景聚类完毕',
@@ -867,7 +900,7 @@ const loadSchema = async () => {
   validatedAt.value = ''
   try {
     if (!projectId.value || !canvasId.value) {
-      throw new Error('缺少项目或画布参数，请从编辑器的“容量规划”入口进入')
+      throw new Error('缺少项目或画布参数，请从编辑器的”容量规划”入口进入')
     }
     schema.value = await planningApi.getFormSchema(projectId.value, canvasId.value)
   }
@@ -879,43 +912,198 @@ const loadSchema = async () => {
   }
 }
 
-const loadDataset = async (datasetId: string) => {
-  selectedDatasetId.value = datasetId
-  scenarioPreview.value = null
-  if (!datasetId) {
-    activeDataset.value = null
-    selectedClusteringFeatureKey.value = ''
-    clustering.featureIds = []
-    return
-  }
-
-  datasetLoading.value = true
-  datasetError.value = ''
+// ───── 任务管理函数 ─────
+const loadTaskList = async () => {
+  taskListLoading.value = true
   try {
-    activeDataset.value = await planningApi.getDataset(projectId.value, datasetId)
-    clustering.featureIds = []
-    selectDefaultClusteringFeature()
+    const result = await planningApi.listPlannings(projectId.value)
+    taskList.value = result.tasks ?? []
   }
   catch (error) {
-    datasetError.value = error instanceof Error ? error.message : String(error)
+    console.warn('[CapPlan] loadTaskList error:', error)
+    taskList.value = []
   }
   finally {
-    datasetLoading.value = false
+    taskListLoading.value = false
   }
+}
+
+const selectTask = async (taskId: string) => {
+  selectedTaskId.value = taskId
+  showTaskListDialog.value = false
+  try {
+    planningTask.value = await planningApi.getPlanning(taskId)
+
+    // 如果任务已有变量配置，恢复到 schema
+    if (planningTask.value?.config?.variables && schema.value) {
+      const savedVariables = planningTask.value.config.variables
+      // 将保存的变量配置合并到 schema 中
+      for (const savedVar of savedVariables) {
+        const existingVar = schema.value.variables.find(v => v.componentId === savedVar.componentId)
+        if (existingVar) {
+          // 更新现有变量的配置
+          existingVar.mode = savedVar.mode
+          existingVar.fixedValue = savedVar.fixedValue
+          existingVar.lowerBound = savedVar.lowerBound
+          existingVar.upperBound = savedVar.upperBound
+          existingVar.suggestedValue = savedVar.suggestedValue
+        }
+      }
+      validatedAt.value = '' // 标记需要重新校验
+    }
+
+    // 如果任务已有聚类配置，恢复聚类设置
+    if (planningTask.value?.config?.clustering) {
+      const c = planningTask.value.config.clustering
+      clustering.featureIds = c.featureIds || []
+      clustering.clusterCount = c.clusterCount || 4
+      clustering.algorithm = c.algorithm || 'kmeans'
+      clustering.normalize = c.normalize || 'zscore'
+      clustering.missingDayThreshold = c.missingDayThreshold || 0.05
+      clustering.seed = c.seed || 20260828
+    }
+
+    // 如果任务已有优化器配置，恢复优化器设置
+    if (planningTask.value?.config?.optimizer) {
+      const o = planningTask.value.config.optimizer
+      optimizer.maxFuncEvals = o.maxFuncEvals || 20
+      optimizer.populationSize = o.populationSize || 10
+      optimizer.seed = o.seed || 20260828
+      optimizer.failurePenalty = o.failurePenalty || 1e18
+    }
+  }
+  catch (error) {
+    console.warn('[CapPlan] selectTask error:', error)
+    planningTask.value = null
+  }
+}
+
+const openTaskList = async () => {
+  await loadTaskList()
+  showTaskListDialog.value = true
+}
+
+const openCreateTask = async () => {
+  // 确保 project 已加载
+  if (!project.value) {
+    try {
+      const result = await projectApi.getProject(projectId.value)
+      project.value = result.project
+    }
+    catch (error) {
+      console.warn('[CapPlan] Failed to load project:', error)
+    }
+  }
+  newTaskForm.name = defaultTaskName.value
+  newTaskForm.canvasId = canvasId.value || project.value?.workspace?.canvases[0]?.id || ''
+  showCreateTaskDialog.value = true
+}
+
+const createTask = async () => {
+  if (!schema.value) return
+  creatingTask.value = true
+  try {
+    const clusteringConfig = {
+      featureIds: [...clustering.featureIds],
+      clusterCount: Number(clustering.clusterCount),
+      algorithm: clustering.algorithm,
+      normalize: clustering.normalize,
+      missingDayThreshold: Number(clustering.missingDayThreshold),
+      seed: Number(clustering.seed),
+      representative: 'nearest-observation'
+    }
+
+    const task = await planningApi.createPlanning({
+      projectId: projectId.value,
+      canvasId: newTaskForm.canvasId || canvasId.value,
+      name: newTaskForm.name || defaultTaskName.value,
+      variables: schema.value.variables,
+      planningLayerId: '1',
+      clustering: clusteringConfig,
+      optimizer: {
+        method: 'adaptive_de_rand_1_bin_radiuslimited',
+        maxFuncEvals: Number(optimizer.maxFuncEvals),
+        populationSize: Number(optimizer.populationSize),
+        maxTimeSeconds: Number(optimizer.maxTimeSeconds),
+        seed: Number(optimizer.seed),
+        failurePenalty: Number(optimizer.failurePenalty)
+      },
+      economics: {
+        evaluator: 'operating-objective-v1',
+        currency: 'CNY'
+      }
+    })
+    push({ tone: 'success', title: '任务已创建', description: task.name || task.id })
+    showCreateTaskDialog.value = false
+    await selectTask(task.id)
+    currentStep.value = 1
+  }
+  catch (error) {
+    push({ tone: 'danger', title: '创建任务失败', description: error instanceof Error ? error.message : String(error) })
+  }
+  finally {
+    creatingTask.value = false
+  }
+}
+
+const deleteTask = async (taskId: string) => {
+  if (!confirm('确认删除该规划任务？此操作不可撤销。')) return
+  try {
+    await planningApi.cancelPlanning(taskId)
+    push({ tone: 'success', title: '任务已删除' })
+    await loadTaskList()
+    if (selectedTaskId.value === taskId) {
+      selectedTaskId.value = null
+      planningTask.value = null
+    }
+  }
+  catch (error) {
+    push({ tone: 'danger', title: '删除失败', description: error instanceof Error ? error.message : String(error) })
+  }
+}
+
+// ───── 步骤保存函数 ─────
+const saveVariablesToTask = async () => {
+  if (!selectedTaskId.value || !schema.value) return
+  // 变量配置保存到任务（通过重新创建任务配置的方式）
+  // 注意：后端目前不支持单独更新变量，需要通过其他方式实现
+  // 这里暂时只在创建任务时保存
+}
+
+const saveClusteringToTask = async () => {
+  if (!selectedTaskId.value) return
+  // 聚类配置保存到任务
+  // 注意：后端目前不支持单独更新聚类配置，需要通过其他方式实现
+  // 这里暂时只在创建任务时保存
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  draft: '草稿',
+  queued: '排队中',
+  validating: '校验中',
+  clustering: '聚类中',
+  optimizing: '优化中',
+  completed: '已完成',
+  failed: '失败',
+  cancelled: '已取消'
+}
+
+const STATUS_TONE: Record<string, string> = {
+  draft: 'neutral',
+  queued: 'primary',
+  validating: 'primary',
+  clustering: 'primary',
+  optimizing: 'primary',
+  completed: 'success',
+  failed: 'danger',
+  cancelled: 'warning'
 }
 
 const loadDatasetContext = async () => {
   datasetError.value = ''
   try {
-    const [projectResult, listResult] = await Promise.all([
-      projectApi.getProject(projectId.value),
-      planningApi.listDatasets(projectId.value)
-    ])
+    const projectResult = await projectApi.getProject(projectId.value)
     project.value = projectResult.project
-    datasets.value = listResult.datasets
-    if (datasets.value[0]) {
-      await loadDataset(datasets.value[0].id)
-    }
   }
   catch (error) {
     datasetError.value = error instanceof Error ? error.message : String(error)
@@ -923,14 +1111,13 @@ const loadDatasetContext = async () => {
 }
 
 const previewTypicalDays = async () => {
-  if (!activeDataset.value || !canPreviewScenarios.value) return
+  if (!canPreviewScenarios.value) return
   datasetLoading.value = true
   datasetError.value = ''
   scenarioPreview.value = null
   try {
     scenarioPreview.value = await planningApi.previewScenarios({
       projectId: projectId.value,
-      datasetId: activeDataset.value.id,
       featureIds: [...clustering.featureIds],
       clusterCount: Number(clustering.clusterCount),
       algorithm: clustering.algorithm,
@@ -986,7 +1173,21 @@ const validateForm = async () => {
 }
 
 const validateAndContinue = async () => {
-  if (await validateForm()) currentStep.value = 2
+  if (await validateForm()) {
+    // 保存变量配置到任务
+    if (selectedTaskId.value && schema.value) {
+      try {
+        await planningApi.updatePlanningConfig(selectedTaskId.value, {
+          variables: [...schema.value.variables]
+        })
+        push({ tone: 'success', title: '变量配置已保存到任务' })
+      }
+      catch (error) {
+        console.warn('[CapPlan] Failed to save variables:', error)
+      }
+    }
+    currentStep.value = 2
+  }
 }
 
 const clearPlanningPoll = () => {
@@ -1030,7 +1231,7 @@ const startPlanningPoll = () => {
 }
 
 const createAndStartPlanning = async () => {
-  if (!canStartPlanning.value || !schema.value || !activeDataset.value) return
+  if (!canStartPlanning.value || !schema.value) return
   planningBusy.value = true
   planningError.value = ''
   planningResult.value = null
@@ -1050,7 +1251,6 @@ const createAndStartPlanning = async () => {
       variables: schema.value.variables,
       planningLayerId: '1',
       clustering: {
-        datasetId: activeDataset.value.id,
         featureIds: [...clustering.featureIds],
         clusterCount: Number(clustering.clusterCount),
         algorithm: clustering.algorithm,
@@ -1132,7 +1332,6 @@ const applyAndSimulate = async () => {
 
 watch(
   () => [
-    selectedDatasetId.value,
     [...clustering.featureIds].sort().join(','),
     clustering.clusterCount,
     clustering.algorithm,
@@ -1218,7 +1417,12 @@ onBeforeUnmount(() => {
   disposeSolverCharts()
 })
 
-await Promise.all([loadSchema(), loadDatasetContext()])
+await Promise.all([loadSchema(), loadDatasetContext(), loadTaskList()])
+
+// 如果没有任务，自动弹出新建任务弹窗
+if (taskList.value.length === 0) {
+  showCreateTaskDialog.value = true
+}
 
 useHead(() => ({
   title: schema.value ? `${schema.value.projectName} - 容量规划` : '容量规划 - SynerRoll'
@@ -1239,6 +1443,31 @@ useHead(() => ({
       <div class="ml-4 hidden h-5 w-px bg-white/25 sm:block" />
       <div class="ml-4 hidden min-w-0 truncate text-sm font-medium text-white sm:block">
         {{ schema?.projectName || project?.name || '项目模型' }} - 容量规划
+      </div>
+      <div class="ml-auto flex items-center gap-2">
+        <div v-if="selectedTaskId" class="flex items-center gap-2">
+          <span class="text-xs text-white/70">当前任务：</span>
+          <span class="rounded bg-white/15 px-2 py-0.5 text-xs font-medium text-white">
+            {{ planningTask?.name || selectedTaskId.slice(0, 8) }}
+          </span>
+          <span class="rounded px-1.5 py-0.5 text-[10px]" :class="`bg-${STATUS_TONE[planningTask?.status || 'draft']}-soft text-${STATUS_TONE[planningTask?.status || 'draft']}`">
+            {{ STATUS_LABEL[planningTask?.status || 'draft'] }}
+          </span>
+        </div>
+        <button
+          class="inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium text-white transition hover:bg-white/10"
+          type="button"
+          @click="openTaskList"
+        >
+          📋 任务列表
+        </button>
+        <button
+          class="inline-flex h-8 items-center gap-1.5 rounded-md bg-white/20 px-3 text-xs font-medium text-white transition hover:bg-white/30"
+          type="button"
+          @click="openCreateTask"
+        >
+          ➕ 新建任务
+        </button>
       </div>
     </header>
 
@@ -1266,9 +1495,7 @@ useHead(() => ({
                 class="h-[72px] w-full rounded-lg border px-4 py-2.5 text-left transition"
                 :class="currentStep === step.id
                   ? 'border-primary bg-primary text-white shadow-md'
-                  : completedStepIds.has(step.id)
-                    ? 'border-green-200 bg-green-50 text-app-text hover:border-green-300'
-                    : 'border-app-border bg-white text-app-text hover:border-primary/40 hover:bg-blue-50/50'"
+                  : 'border-app-border bg-white text-app-text hover:border-primary/40 hover:bg-blue-50/50'"
                 :aria-current="currentStep === step.id ? 'step' : undefined"
                 @click="selectStep(step.id)"
               >
@@ -1277,11 +1504,9 @@ useHead(() => ({
                     class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
                     :class="currentStep === step.id
                       ? 'bg-white text-primary'
-                      : completedStepIds.has(step.id)
-                        ? 'bg-green-500 text-white'
-                        : 'bg-app-panel-soft text-app-muted'"
+                      : 'bg-app-panel-soft text-app-muted'"
                   >
-                    {{ completedStepIds.has(step.id) && currentStep !== step.id ? '✓' : step.id }}
+                    {{ step.id }}
                   </span>
                   <span class="min-w-0 flex-1">
                     <span class="block truncate text-base">步骤{{ ['一', '二', '三', '四', '五', '六'][step.id - 1] }}：{{ step.title }}</span>
@@ -1295,20 +1520,41 @@ useHead(() => ({
           </nav>
 
           <div class="border-t border-app-border bg-app-panel-soft px-4 py-3">
-            <div class="text-xs text-app-muted">当前：<span class="font-semibold text-primary">{{ activeStep.title }}</span></div>
-            <div class="mt-1 text-xs text-app-muted">{{ activeStep.description }}</div>
+            <div class="mt-1 text-sm text-app-muted">{{ activeStep.description }}</div>
           </div>
         </aside>
 
         <main class="panel-card flex min-w-0 flex-1 flex-col overflow-hidden">
-          <div class="flex items-center justify-between gap-5 border-b border-app-border bg-white px-6 py-4">
-            <div>
-              <div class="text-xs font-semibold text-primary">步骤 {{ currentStep }} / 6</div>
-              <h2 class="mt-0.5 text-xl font-bold text-app-text">{{ activeStep.title }}</h2>
+          <!-- 未选中任务时的提示 -->
+          <div v-if="!selectedTaskId" class="flex-1 flex flex-col items-center justify-center text-app-muted text-sm gap-4">
+            <div class="flex h-16 w-16 items-center justify-center rounded-full bg-app-panel-soft text-3xl">📋</div>
+            <div class="text-lg font-medium text-app-text">请先选择或创建一个容量规划任务</div>
+            <p class="max-w-md text-center text-sm text-app-muted">容量规划需要基于一个任务进行，任务会保存所有的配置和计算结果。</p>
+            <div class="flex gap-3 mt-2">
+              <AppButton label="选择任务" tone="primary" @click="openTaskList" />
+              <AppButton label="新建任务" tone="neutral" @click="openCreateTask" />
             </div>
           </div>
 
-          <div ref="contentScroller" class="min-h-0 flex-1 overflow-y-auto bg-app-surface p-5">
+          <!-- 已选中任务时的内容 -->
+          <template v-else>
+            <div class="flex items-center justify-between gap-5 border-b border-app-border bg-white px-6 py-4">
+              <div>
+                <div class="text-xs font-semibold text-primary">步骤 {{ currentStep }} / 6</div>
+                <h2 class="mt-0.5 text-xl font-bold text-app-text">{{ activeStep.title }}</h2>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-app-muted">任务：</span>
+                <span class="rounded bg-primary-soft px-2 py-0.5 text-xs font-medium text-primary">
+                  {{ planningTask?.name || selectedTaskId?.slice(0, 8) }}
+                </span>
+                <span class="rounded px-1.5 py-0.5 text-[10px]" :class="`bg-${STATUS_TONE[planningTask?.status || 'draft']}-soft text-${STATUS_TONE[planningTask?.status || 'draft']}`">
+                  {{ STATUS_LABEL[planningTask?.status || 'draft'] }}
+                </span>
+              </div>
+            </div>
+
+            <div ref="contentScroller" class="min-h-0 flex-1 overflow-y-auto bg-app-surface p-5">
             <div v-if="errorMessage" class="mb-4 rounded-lg border border-app-danger/30 bg-red-50 px-4 py-3 text-sm text-app-danger">
               {{ errorMessage }}
             </div>
@@ -1450,7 +1696,7 @@ useHead(() => ({
               <div class="rounded-lg border border-app-border bg-white">
                 <div class="flex items-center justify-between border-b border-app-border px-5 py-4">
                   <div>
-                    <h3 class="font-semibold text-app-text">边界配置数据</h3>
+                    <h3>边界配置数据</h3>
                   </div>
                   <span class="text-xs text-app-muted">共 {{ configuredBoundaries.length }} 项</span>
                 </div>
@@ -1511,11 +1757,8 @@ useHead(() => ({
               <div class="rounded-lg border border-app-border bg-white">
                 <div class="flex items-center justify-between border-b border-app-border px-5 py-4">
                   <div>
-                    <h3 class="font-semibold text-app-text">数据预览</h3>
+                    <h3 v-if="selectedBoundary">{{ selectedBoundary.name }}</h3>
                   </div>
-                  <span v-if="selectedBoundary" class="rounded-full bg-primary-soft px-3 py-1 text-xs font-medium text-primary">
-                    正在预览：{{ selectedBoundary.name }}
-                  </span>
                 </div>
 
                 <div v-if="selectedBoundary && selectedBoundaryPreviewData" class="p-4">
@@ -1533,15 +1776,14 @@ useHead(() => ({
 
               <div class="flex items-center justify-between">
                 <AppButton label="返回边界配置" tone="neutral" @click="navigateTo('/boundary/' + projectId)" />
-                <AppButton label="确认数据，进入典型场景聚类" tone="primary" :disabled="!activeDataset" @click="confirmBoundaryData" />
+                <AppButton label="确认数据，进入典型场景聚类" tone="primary" :disabled="!configuredBoundaries.length" @click="confirmBoundaryData" />
               </div>
             </section>
 
             <section v-else-if="currentStep === 3" class="space-y-4">
               <div class="rounded-lg border border-app-border bg-white">
                 <div class="border-b border-app-border px-5 py-4">
-                  <h3 class="font-semibold text-app-text">聚类配置</h3>
-                  <p class="mt-1 text-xs text-app-muted">选择典型场景数量、聚类算法和参与聚类的边界特征。</p>
+                  <h3 class="">聚类算法配置</h3>
                 </div>
                 <div class="p-5">
                   <div class="grid grid-cols-[180px_240px_minmax(0,1fr)] items-start gap-4">
@@ -1564,17 +1806,15 @@ useHead(() => ({
                     </label>
                   </div>
 
-                  <div class="mt-5 flex items-center justify-between border-t border-app-border pt-4">
-                    <p class="text-xs text-app-muted">点击后执行 {{ clustering.algorithm === 'kmeans' ? 'K-means' : 'K-medoids' }} 聚类，并停留在本页查看结果。</p>
-                    <AppButton label="开始聚类并预览" tone="primary" :disabled="datasetLoading || !canPreviewScenarios" @click="previewTypicalDays" />
+                  <div class="mt-5 flex items-center justify-between">
+                    <AppButton label="生成典型场景" tone="primary" :disabled="datasetLoading || !canPreviewScenarios" @click="previewTypicalDays" />
                   </div>
                 </div>
               </div>
 
               <div class="rounded-lg border border-app-border bg-white">
                 <div class="flex items-center justify-between border-b border-app-border px-5 py-4">
-                  <div><h3 class="font-semibold text-app-text">典型场景结果预览</h3><p class="mt-1 text-xs text-app-muted">每个场景展示所选边界的日内曲线及其全年加权。</p></div>
-                  <span v-if="scenarioPreview" class="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-app-success">聚类完成</span>
+                  <h3 class="">典型场景预览</h3>
                 </div>
 
                 <div v-if="scenarioPreview" class="p-5">
@@ -1588,7 +1828,7 @@ useHead(() => ({
                     <article v-for="(scenario, scenarioIndex) in scenarioPreview.scenarios" :key="scenario.scenarioId" class="overflow-hidden rounded-lg border border-app-border bg-white">
                       <div class="flex items-center justify-between gap-4 border-b border-app-border bg-app-panel-soft px-4 py-3">
                         <div>
-                          <div class="text-sm font-semibold text-app-text">典型场景 {{ scenarioIndex + 1 }}</div>
+                          <div class="text-sm">典型场景 {{ scenarioIndex + 1 }}</div>
                           <div class="mt-0.5 text-xs text-app-muted">代表日期 {{ scenario.representativeDate }} · 覆盖 {{ scenario.memberDates.length }} 个自然日</div>
                         </div>
                         <div class="shrink-0 text-right">
@@ -1824,13 +2064,163 @@ useHead(() => ({
               </div>
             </section>
           </div>
+          </template>
         </main>
       </template>
     </div>
+
+    <!-- 任务列表弹窗 -->
+    <AppModal
+      :open="showTaskListDialog"
+      title="容量规划任务列表"
+      size="lg"
+      @close="showTaskListDialog = false"
+    >
+      <div class="px-2 py-1">
+        <div class="max-h-96 overflow-y-auto">
+          <div v-if="taskListLoading" class="p-4 text-center text-sm text-app-muted">
+            加载中...
+          </div>
+          <div v-else-if="taskList.length === 0" class="p-4 text-center text-sm text-app-muted">
+            暂无规划任务
+          </div>
+          <table v-else class="w-full text-sm">
+            <thead>
+              <tr class="text-left text-xs text-app-muted border-b border-app-border">
+                <th class="pb-2 pr-4">任务名称</th>
+                <th class="pb-2 pr-4">状态</th>
+                <th class="pb-2 pr-4">创建时间</th>
+                <th class="pb-2">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="task in taskList"
+                :key="task.id"
+                class="border-b border-app-border cursor-pointer hover:bg-app-panel-soft"
+                :class="selectedTaskId === task.id ? 'bg-primary-soft' : ''"
+                @click="selectTask(task.id)"
+              >
+                <td class="py-2 pr-4 truncate max-w-[12rem]">{{ task.name || task.id.slice(0, 8) }}</td>
+                <td class="py-2 pr-4">
+                  <span
+                    class="px-1.5 py-0.5 rounded text-[10px]"
+                    :class="`bg-${STATUS_TONE[task.status]}-soft text-${STATUS_TONE[task.status]}`"
+                  >{{ STATUS_LABEL[task.status] }}</span>
+                </td>
+                <td class="py-2 pr-4 text-xs text-app-muted">{{ task.createdAt }}</td>
+                <td class="py-2">
+                  <div class="flex gap-1">
+                    <AppButton
+                      v-if="['draft', 'completed', 'failed', 'cancelled'].includes(task.status)"
+                      label="删除"
+                      size="sm"
+                      tone="ghost"
+                      @click.stop="deleteTask(task.id)"
+                    />
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <template #footer>
+        <AppButton label="刷新" tone="ghost" size="sm" @click="loadTaskList" />
+        <AppButton label="关闭" tone="neutral" size="sm" @click="showTaskListDialog = false" />
+      </template>
+    </AppModal>
+
+    <!-- 新建任务弹窗 -->
+    <AppModal
+      :open="showCreateTaskDialog"
+      title="新建容量规划任务"
+      size="lg"
+      @close="showCreateTaskDialog = false"
+    >
+      <div class="space-y-4 px-2 py-1">
+        <section class="p-2">
+          <div class="mb-3">
+            <h3 class="text-base text-app-text">任务设置</h3>
+          </div>
+
+          <div class="space-y-4 border-t border-app-border pt-4">
+            <!-- 项目名称和建模画布在同一行 -->
+            <div class="property-row-double">
+              <div class="flex items-center gap-2 flex-1">
+                <label class="property-label">项目名称</label>
+                <input
+                  type="text"
+                  :value="schema?.projectName || project?.name || ''"
+                  disabled
+                  class="flex-1 rounded-md border border-app-border bg-app-panel-soft px-3 py-2 text-sm text-app-muted"
+                />
+              </div>
+              <div class="flex items-center gap-2 flex-1">
+                <label class="property-label">建模画布</label>
+                <select
+                  v-model="newTaskForm.canvasId"
+                  class="flex-1 rounded-md border border-app-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option v-for="canvas in canvasOptions" :key="canvas.value" :value="canvas.value">
+                    {{ canvas.label }}
+                  </option>
+                </select>
+              </div>
+            </div>
+            <!-- 任务名称 -->
+            <div class="property-row-double">
+              <div class="flex items-center gap-2 flex-1">
+                <label class="property-label">任务名称</label>
+                <input
+                  v-model="newTaskForm.name"
+                  type="text"
+                  :placeholder="defaultTaskName"
+                  class="flex-1 rounded-md border border-app-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="p-2">
+          <div class="rounded-lg bg-app-panel-soft p-3 text-xs text-app-muted">
+            <p class="font-medium text-app-text mb-2">说明</p>
+            <ul class="space-y-1 list-disc list-inside">
+              <li>容量规划任务将保存所有的变量配置、聚类参数和优化设置</li>
+              <li>每个任务独立管理，可以创建多个任务进行对比</li>
+              <li>任务创建后可以在各步骤中修改配置并自动保存</li>
+            </ul>
+          </div>
+        </section>
+      </div>
+      <template #footer>
+        <AppButton label="取消" tone="neutral" @click="showCreateTaskDialog = false" />
+        <AppButton label="创建" tone="primary" :disabled="creatingTask" @click="createTask" />
+      </template>
+    </AppModal>
   </div>
 </template>
 
 <style scoped>
+.property-row-double {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding-inline: 10px;
+}
+
+.property-row-double .property-label {
+  width: 70px;
+  flex-shrink: 0;
+}
+
+.property-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1d2129;
+}
+
 .variable-slider {
   display: flex;
   align-items: center;

@@ -84,7 +84,7 @@ export interface ImportBoundaryDatasetRequest {
 
 export interface ClusteringConfig {
   projectId: string
-  datasetId: string
+  datasetId?: string
   featureIds: string[]
   clusterCount: number
   algorithm: 'kmeans' | 'kmedoids'

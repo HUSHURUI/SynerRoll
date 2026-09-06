@@ -120,6 +120,7 @@ function run_capacity_optimization!(planning_id::String, ctx)
         _planning_cancelled(ctx) && throw(PlanningCancelled("规划任务已取消"))
         scenario_set = reduce_boundary_scenarios(config["clustering"])
         save_planning_scenarios!(planning_id, scenario_set)
+        save_scenario_set_series!(planning_id, scenario_set["scenarios"])
         write(joinpath(planning_dir, "scenarios.json"), JSON3.write(scenario_set))
 
         optimizer = config["optimizer"]
@@ -184,6 +185,7 @@ function run_capacity_optimization!(planning_id::String, ctx)
                     scenario_set,
                     work_dir;
                     options=EvaluationOptions(layer_id=string(config["planningLayerId"])),
+                    planning_id=planning_id,
                 )
                 if simulation.feasible
                     economic = evaluate_economics(

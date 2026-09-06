@@ -11,9 +11,45 @@ const PLANNING_STORE_LOCK = ReentrantLock()
 const PLANNING_STORE_REF = Ref{Union{Nothing,SQLite.DB}}(nothing)
 const PLANNING_TERMINAL_STATUSES = Set(["completed", "failed", "cancelled"])
 
+# per-task 场景数据库缓存
+const SCENARIO_STORE_LOCK = ReentrantLock()
+const SCENARIO_STORE_REFS = Dict{String,Tuple{SQLite.DB,ReentrantLock}}()
+
 function planning_task_dir(planning_id::String)
     occursin(r"^cp-[0-9a-f-]+$", planning_id) || error("非法 planningId")
     return joinpath(PLANNING_DATA_ROOT, planning_id)
+end
+
+"""
+    get_scenario_store(planning_id) -> (db, lock)
+
+获取或创建 per-task 场景数据库 (cp-{id}/scenarios.db)。
+返回数据库句柄和对应的锁。
+"""
+function get_scenario_store(planning_id::String)
+    lock(SCENARIO_STORE_LOCK) do
+        if haskey(SCENARIO_STORE_REFS, planning_id)
+            return SCENARIO_STORE_REFS[planning_id]
+        end
+        task_dir = planning_task_dir(planning_id)
+        mkpath(task_dir)
+        db_path = joinpath(task_dir, "scenarios.db")
+        db = SQLite.DB(db_path)
+        _exec(db, "PRAGMA foreign_keys=ON")
+        _exec(db, "PRAGMA journal_mode=WAL")
+        _exec(db, """
+            CREATE TABLE IF NOT EXISTS scenario_series (
+                scenario_id           TEXT NOT NULL,
+                boundary_id           TEXT NOT NULL,
+                hour                  INTEGER NOT NULL,
+                value                 REAL NOT NULL,
+                PRIMARY KEY (scenario_id, boundary_id, hour)
+            )
+        """)
+        store_lock = ReentrantLock()
+        SCENARIO_STORE_REFS[planning_id] = (db, store_lock)
+        return (db, store_lock)
+    end
 end
 
 function get_planning_store()
@@ -348,7 +384,148 @@ function delete_planning_record!(planning_id::String)
     lock(PLANNING_STORE_LOCK) do
         _exec(db, "DELETE FROM planning_tasks WHERE id=?", (planning_id,))
     end
+    # 清理 per-task 场景数据库缓存
+    lock(SCENARIO_STORE_LOCK) do
+        delete!(SCENARIO_STORE_REFS, planning_id)
+    end
     directory = planning_task_dir(planning_id)
     isdir(directory) && rm(directory; recursive=true, force=true)
+    return nothing
+end
+
+# ───── 典型场景时序数据（per-task scenarios.db） ─────
+
+"""
+    save_scenario_series!(planning_id, scenario_id, boundary_id, values)
+
+保存单个典型场景的单条边界时序数据 (24小时)。
+values 应为长度 24 的向量，索引对应 hour 0-23。
+数据存储在 cp-{id}/scenarios.db 中。
+"""
+function save_scenario_series!(planning_id::String, scenario_id::String, boundary_id::String, values::AbstractVector)
+    length(values) == 24 || error("典型场景时序数据长度必须为 24，当前为 $(length(values))")
+    db, store_lock = get_scenario_store(planning_id)
+    lock(store_lock) do
+        _exec(db, "BEGIN IMMEDIATE")
+        try
+            _exec(db, "DELETE FROM scenario_series WHERE scenario_id=? AND boundary_id=?",
+                (scenario_id, boundary_id))
+            for (index, value) in enumerate(values)
+                _exec(db, """
+                    INSERT INTO scenario_series (scenario_id, boundary_id, hour, value)
+                    VALUES (?, ?, ?, ?)
+                """, (scenario_id, boundary_id, index - 1, Float64(value)))
+            end
+            _exec(db, "COMMIT")
+        catch
+            try _exec(db, "ROLLBACK") catch end
+            rethrow()
+        end
+    end
+    return nothing
+end
+
+"""
+    save_scenario_set_series!(planning_id, scenarios)
+
+批量保存所有典型场景的时序数据到 cp-{id}/scenarios.db。
+"""
+function save_scenario_set_series!(planning_id::String, scenarios::AbstractVector)
+    db, store_lock = get_scenario_store(planning_id)
+    lock(store_lock) do
+        _exec(db, "BEGIN IMMEDIATE")
+        try
+            _exec(db, "DELETE FROM scenario_series")
+            for scenario in scenarios
+                scenario_id = string(get(scenario, "scenarioId", ""))
+                isempty(scenario_id) && continue
+                series = get(scenario, "series", nothing)
+                series isa AbstractDict || continue
+                for (boundary_id_raw, values_raw) in series
+                    boundary_id = string(boundary_id_raw)
+                    values_raw isa AbstractVector || continue
+                    length(values_raw) == 24 || continue
+                    for (index, value) in enumerate(values_raw)
+                        _exec(db, """
+                            INSERT INTO scenario_series (scenario_id, boundary_id, hour, value)
+                            VALUES (?, ?, ?, ?)
+                        """, (scenario_id, boundary_id, index - 1, Float64(value)))
+                    end
+                end
+            end
+            _exec(db, "COMMIT")
+        catch
+            try _exec(db, "ROLLBACK") catch end
+            rethrow()
+        end
+    end
+    return nothing
+end
+
+"""
+    get_scenario_series(planning_id, scenario_id, boundary_id) -> Vector{Float64}
+
+从 cp-{id}/scenarios.db 获取单个场景的单条边界时序数据。
+"""
+function get_scenario_series(planning_id::String, scenario_id::String, boundary_id::String)
+    db, store_lock = get_scenario_store(planning_id)
+    return lock(store_lock) do
+        rows = _query(db, """
+            SELECT hour, value FROM scenario_series
+            WHERE scenario_id=? AND boundary_id=?
+            ORDER BY hour
+        """, (scenario_id, boundary_id))
+        isempty(rows.hour) && return Float64[]
+        result = zeros(24)
+        for index in eachindex(rows.hour)
+            hour = Int(rows.hour[index])
+            0 <= hour <= 23 && (result[hour + 1] = Float64(rows.value[index]))
+        end
+        return result
+    end
+end
+
+"""
+    get_scenario_set_series(planning_id) -> Dict
+
+从 cp-{id}/scenarios.db 获取任务的所有典型场景时序数据。
+"""
+function get_scenario_set_series(planning_id::String)
+    db, store_lock = get_scenario_store(planning_id)
+    return lock(store_lock) do
+        rows = _query(db, """
+            SELECT scenario_id, boundary_id, hour, value FROM scenario_series
+            ORDER BY scenario_id, boundary_id, hour
+        """)
+        result = Dict{String,Dict{String,Vector{Float64}}}()
+        if !isempty(rows.scenario_id)
+            for index in eachindex(rows.scenario_id)
+                scenario_id = String(rows.scenario_id[index])
+                boundary_id = String(rows.boundary_id[index])
+                hour = Int(rows.hour[index])
+                value = Float64(rows.value[index])
+                if !haskey(result, scenario_id)
+                    result[scenario_id] = Dict{String,Vector{Float64}}()
+                end
+                if !haskey(result[scenario_id], boundary_id)
+                    result[scenario_id][boundary_id] = zeros(24)
+                end
+                0 <= hour <= 23 && (result[scenario_id][boundary_id][hour + 1] = value)
+            end
+        end
+        return result
+    end
+end
+
+"""
+    delete_scenario_series!(planning_id)
+
+删除 cp-{id}/scenarios.db 中的所有场景时序数据。
+"""
+function delete_scenario_series!(planning_id::String)
+    db, store_lock = get_scenario_store(planning_id)
+    lock(store_lock) do
+        _exec(db, "DELETE FROM scenario_series")
+    end
     return nothing
 end

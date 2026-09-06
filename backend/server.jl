@@ -27,7 +27,6 @@ begin
     include("services/capacity_planning/types.jl")
     include("services/capacity_planning/variable_detector.jl")
     include("services/capacity_planning/candidate_snapshot.jl")
-    include("services/capacity_planning/scenario_reducer.jl")
 
     # 工具模块
     include("utils/timestr_utils.jl")
@@ -44,6 +43,9 @@ begin
 
     # 服务模块（需在utils和components之前加载，prediction_utils.jl依赖TimeSeries）
     include("services/boundary_service.jl")
+
+    # 聚类模块（依赖 utils + boundary_service 中的 parse_boundary_data）
+    include("services/capacity_planning/scenario_reducer.jl")
 
     # 组件模块
     include("components/wind_turbine/component.jl")

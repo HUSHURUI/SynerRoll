@@ -20,6 +20,8 @@ dist/
 # ========================
 backend/data/tasks/
 backend/data/tasks.db
+backend/data/capacity-planning/
+backend/data/capacity-planning.db
 backend/test/
 
 # ========================

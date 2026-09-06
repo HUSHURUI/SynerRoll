@@ -52,25 +52,44 @@ function _scenario_series_metadata(scenario_set::AbstractDict)
     return Dict(string(get(item, "boundaryId", "")) => item for item in series)
 end
 
-function _seed_evaluation_scenario!(db_path::String, layer_id::String, scenario, scenario_set, metadata)
+function _seed_evaluation_scenario!(db_path::String, layer_id::String, scenario, scenario_set, metadata; planning_id::Union{Nothing,String}=nothing)
     config = get(scenario_set, "config", Dict())
     resolution = Int(get(config, "resolutionMinutes", 0))
     resolution > 0 || throw(CapacityPlanningError("INVALID_SCENARIO_RESOLUTION", "场景分辨率必须大于 0"))
     1440 % resolution == 0 || throw(CapacityPlanningError("INVALID_SCENARIO_RESOLUTION", "场景分辨率必须整除 1440"))
     expected_points = 1440 ÷ resolution
     timestamps = [minutes_to_time_label((index - 1) * resolution) for index in 1:expected_points]
-    series = get(scenario, "series", nothing)
-    series isa AbstractDict || throw(CapacityPlanningError("SCENARIO_SERIES_MISSING", "典型场景缺少 series"))
+    scenario_id = string(get(scenario, "scenarioId", ""))
 
-    for (boundary_id_raw, values_raw) in series
-        boundary_id = string(boundary_id_raw)
+    # 确定数据来源：优先从数据库读取，否则从 scenario 的 series 字段读取
+    series_data = Dict{String,Vector{Float64}}()
+    if planning_id !== nothing && !isempty(scenario_id)
+        # 从数据库读取场景时序数据
+        db_series = get_scenario_set_series(planning_id)
+        if haskey(db_series, scenario_id)
+            series_data = db_series[scenario_id]
+        end
+    end
+
+    if isempty(series_data)
+        # 回退：从 scenario 的 series 字段读取（向后兼容）
+        series = get(scenario, "series", nothing)
+        series isa AbstractDict || throw(CapacityPlanningError("SCENARIO_SERIES_MISSING", "典型场景缺少 series"))
+        for (boundary_id_raw, values_raw) in series
+            boundary_id = string(boundary_id_raw)
+            values_raw isa AbstractVector || continue
+            series_data[boundary_id] = Float64.(values_raw)
+        end
+    end
+
+    isempty(series_data) && throw(CapacityPlanningError("SCENARIO_SERIES_MISSING", "典型场景缺少时序数据"))
+
+    for (boundary_id, values) in series_data
         item = get(metadata, boundary_id, nothing)
         item === nothing && throw(CapacityPlanningError("SCENARIO_FEATURE_UNKNOWN", "场景包含未知边界 $(boundary_id)"))
-        values_raw isa AbstractVector || throw(CapacityPlanningError("INVALID_SCENARIO_SERIES", "$(boundary_id) 的场景数据不是数组"))
-        length(values_raw) == expected_points || throw(CapacityPlanningError(
-            "INVALID_SCENARIO_SERIES", "$(boundary_id) 应有 $(expected_points) 个点，实际为 $(length(values_raw))",
+        length(values) == expected_points || throw(CapacityPlanningError(
+            "INVALID_SCENARIO_SERIES", "$(boundary_id) 应有 $(expected_points) 个点，实际为 $(length(values))",
         ))
-        values = Float64.(values_raw)
         all(isfinite, values) || throw(CapacityPlanningError("INVALID_SCENARIO_SERIES", "$(boundary_id) 含非有限数值"))
         meaning = strip(string(get(item, "meaning", "")))
         isempty(meaning) && throw(CapacityPlanningError("SCENARIO_MEANING_MISSING", "边界 $(boundary_id) 缺少 meaning"))
@@ -80,10 +99,12 @@ function _seed_evaluation_scenario!(db_path::String, layer_id::String, scenario,
 end
 
 """
-    evaluate_snapshot(project_snapshot, canvas_id, scenario_set, work_dir; options)
+    evaluate_snapshot(project_snapshot, canvas_id, scenario_set, work_dir; options, planning_id)
 
 在进程内对典型场景逐一运行真实 JuMP/COPT 模型。该函数不创建普通 task、不更新 tasks.db、
 默认不落组件结果和回溯，只返回按 `weightDays` 加权的运行目标及场景明细。
+
+当提供 planning_id 时，从数据库读取场景时序数据；否则从 scenario_set 的 scenarios[].series 读取。
 """
 function evaluate_snapshot(
     project_snapshot::AbstractDict,
@@ -91,6 +112,7 @@ function evaluate_snapshot(
     scenario_set::AbstractDict,
     work_dir::String;
     options::EvaluationOptions=EvaluationOptions(),
+    planning_id::Union{Nothing,String}=nothing,
 )::EvaluationResult
     scenario_metrics = Dict{String,Any}[]
     try
@@ -123,7 +145,7 @@ function evaluate_snapshot(
             mkpath(scenario_dir)
             db_path = joinpath(scenario_dir, "timeseries.db")
             try
-                _seed_evaluation_scenario!(db_path, options.layer_id, scenario, scenario_set, metadata)
+                _seed_evaluation_scenario!(db_path, options.layer_id, scenario, scenario_set, metadata; planning_id)
                 # 当前生产模型实现以 tracked builder 为真源；规划只复用其数学模型，
                 # 默认丢弃生成的代码文本，不向候选目录写 .jl 文件。
                 model, components, generated_code = build_model_tracked(

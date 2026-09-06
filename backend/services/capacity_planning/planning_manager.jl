@@ -42,15 +42,15 @@ end
 function _normalize_clustering_config(raw, project_id::String)
     config = _planning_dict(raw, "clustering")
     dataset_id = String(strip(string(get(config, "datasetId", ""))))
-    isempty(dataset_id) && error("clustering.datasetId 不能为空")
-    feature_ids = get(config, "featureIds", nothing)
-    feature_ids isa AbstractVector && !isempty(feature_ids) || error("clustering.featureIds 不能为空")
+    # 允许 datasetId 为空（草稿状态，后续步骤中补充）
+    feature_ids_raw = get(config, "featureIds", nothing)
+    feature_ids = feature_ids_raw isa AbstractVector ? String.(feature_ids_raw) : String[]
     algorithm = string(get(config, "algorithm", "kmeans"))
     algorithm in ("kmeans", "kmedoids") || error("clustering.algorithm 只能是 kmeans 或 kmedoids")
     return Dict{String,Any}(
         "projectId" => project_id,
-        "datasetId" => dataset_id,
-        "featureIds" => String.(feature_ids),
+        "datasetId" => isempty(dataset_id) ? nothing : dataset_id,
+        "featureIds" => feature_ids,
         "clusterCount" => Int(get(config, "clusterCount", 0)),
         "algorithm" => algorithm,
         "normalize" => string(get(config, "normalize", "zscore")),

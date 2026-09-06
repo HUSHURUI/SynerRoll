@@ -87,6 +87,7 @@ end
         data = reduce_boundary_scenarios(body)
         return json_success(data = data)
     catch e
+        @error "典型场景聚类失败" exception=(e, catch_backtrace())
         return json_error("典型场景聚类失败: $(sprint(showerror, e))")
     end
 end
@@ -160,5 +161,43 @@ end
         return json_success(data = Dict("planningId" => String(id)))
     catch e
         return json_error("删除容量规划任务失败: $(sprint(showerror, e))")
+    end
+end
+
+@put "/api/capacity-planning/{id}/config" function (req, id)
+    try
+        planning_id = String(id)
+        task = get_planning_task(planning_id)
+        task === nothing && return json_error("容量规划任务不存在: $(planning_id)")
+        task["status"] == "draft" || return json_error("只能修改草稿状态的任务配置")
+
+        body = JSON3.read(req.body, Dict)
+        config = get(task, "config", Dict{String,Any}())
+        new_config = Dict{String,Any}(string(key) => value for (key, value) in config)
+
+        # 更新聚类配置
+        if haskey(body, "clustering")
+            clustering = get(body, "clustering", nothing)
+            if clustering isa AbstractDict
+                new_config["clustering"] = _normalize_clustering_config(clustering, task["projectId"])
+            end
+        end
+
+        # 更新变量配置
+        if haskey(body, "variables")
+            variables = get(body, "variables", nothing)
+            if variables isa AbstractVector
+                new_config["variables"] = validate_capacity_variables(
+                    JSON3.read(read(joinpath(planning_task_dir(planning_id), "project_snapshot.json"), String), Dict{String,Any}),
+                    task["canvasId"],
+                    variables
+                )
+            end
+        end
+
+        update_planning_config!(planning_id, new_config)
+        return json_success(data = get_planning_task(planning_id))
+    catch e
+        return json_error("更新任务配置失败: $(sprint(showerror, e))")
     end
 end

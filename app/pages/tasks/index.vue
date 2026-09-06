@@ -21,6 +21,7 @@ import {
 } from '~~/config/flexibility'
 import PropertyText from '../../components/PropertyText.vue'
 import PropertySelect from '../../components/PropertySelect.vue'
+import DeviceOutputAnalysis from '~/components/DeviceOutputAnalysis.vue'
 
 definePageMeta({ title: '结果分析 - SynerRoll' })
 
@@ -1225,7 +1226,6 @@ const createTask = async () => {
                 <template v-else>
                   <span class="text-app-muted">系统边界：<span class="font-medium text-app-text">无外部交换，内部资源承担平衡</span></span>
                 </template>
-                <span class="ml-auto rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">已启用</span>
               </section>
 
               <section v-if="flexibilityData?.summaries.length" class="grid gap-3 xl:grid-cols-2">
@@ -1343,6 +1343,19 @@ const createTask = async () => {
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- 设备出力分析 -->
+          <div v-else-if="activeSection === 'device-output'" class="flex-1 min-h-0">
+            <DeviceOutputAnalysis
+              :task-id="selectedTask.id"
+              :canvas-id="selectedTask.canvas_id"
+              :project="currentProject"
+              :live-data="liveData"
+              :live-data-units="liveDataUnits"
+              :layer-options="layerOptions"
+              :sim-end-time="selectedTask.sim_end_time"
+            />
           </div>
 
           <!-- 其他栏目占位 -->

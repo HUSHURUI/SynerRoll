@@ -86,31 +86,12 @@ const formatMinutes = (minutes: number): string => {
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
 }
 
-const rangeSelectionStyle = computed(() => ({
-  left: `${rangeStartMinutes.value / DAY_MINUTES * 100}%`,
-  right: `${(DAY_MINUTES - rangeEndMinutes.value) / DAY_MINUTES * 100}%`
-}))
-
-const rangeLabelStyle = (minutes: number): Record<string, string> => {
-  const percentage = minutes / DAY_MINUTES * 100
-  const transform = percentage <= 1 ? 'translateX(0)' : percentage >= 99 ? 'translateX(-100%)' : 'translateX(-50%)'
-  return { left: `${percentage}%`, transform }
+const updateRangeStart = (value: number) => {
+  rangeStartMinutes.value = value
 }
 
-const updateRangeStart = (event: Event) => {
-  const value = Number((event.target as HTMLInputElement).value)
-  rangeStartMinutes.value = Math.min(
-    Math.max(0, value),
-    rangeEndMinutes.value - sliderStepMinutes.value
-  )
-}
-
-const updateRangeEnd = (event: Event) => {
-  const value = Number((event.target as HTMLInputElement).value)
-  rangeEndMinutes.value = Math.max(
-    Math.min(DAY_MINUTES, value),
-    rangeStartMinutes.value + sliderStepMinutes.value
-  )
+const updateRangeEnd = (value: number) => {
+  rangeEndMinutes.value = value
 }
 
 const contributionColorByDevice = computed(() => {
@@ -269,7 +250,7 @@ onBeforeUnmount(() => {
 <template>
   <section class="border border-app-border bg-white px-4 py-2">
     <div class="flex items-center gap-3">
-      <span class="text-base text-app-text">{{ directionLabel }}灵活性排序</span>
+      <span class="text-base text-app-text">{{ directionLabel }}灵活性时序</span>
     </div>
     <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px]">
       <div class="relative min-w-0 h-64">
@@ -318,87 +299,17 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="px-4">
-      <div class="relative h-14">
-        <div class="absolute inset-x-0 top-1.5 h-1 rounded-full bg-app-border">
-          <div class="absolute top-0 h-1 rounded-full bg-primary" :style="rangeSelectionStyle" />
-        </div>
-        <input
-          :value="rangeStartMinutes"
-          type="range"
-          min="0"
-          :max="DAY_MINUTES"
-          :step="sliderStepMinutes"
-          class="flexibility-range-input absolute inset-x-0 top-[-2px] z-10 w-full"
-          aria-label="起始时间"
-          @input="updateRangeStart"
-        >
-        <input
-          :value="rangeEndMinutes"
-          type="range"
-          min="0"
-          :max="DAY_MINUTES"
-          :step="sliderStepMinutes"
-          class="flexibility-range-input absolute inset-x-0 top-[-2px] z-20 w-full"
-          aria-label="终止时间"
-          @input="updateRangeEnd"
-        >
-        <span
-          class="absolute top-4 whitespace-nowrap text-xs text-app-muted"
-          :style="rangeLabelStyle(rangeStartMinutes)"
-        >{{ formatMinutes(rangeStartMinutes) }}</span>
-        <span
-          class="absolute top-4 whitespace-nowrap text-xs text-app-muted"
-          :style="rangeLabelStyle(rangeEndMinutes)"
-        >{{ formatMinutes(rangeEndMinutes) }}</span>
-      </div>
+      <DualRangeSlider
+        :start="rangeStartMinutes"
+        :end="rangeEndMinutes"
+        :min="0"
+        :max="DAY_MINUTES"
+        :step="sliderStepMinutes"
+        :format-label="formatMinutes"
+        @update:start="updateRangeStart"
+        @update:end="updateRangeEnd"
+      />
     </div>
   </section>
 </template>
 
-<style scoped>
-.flexibility-range-input {
-  height: 20px;
-  margin: 0;
-  background: transparent;
-  cursor: pointer;
-  appearance: none;
-  pointer-events: none;
-}
-
-.flexibility-range-input::-webkit-slider-runnable-track {
-  height: 4px;
-  background: transparent;
-}
-
-.flexibility-range-input::-webkit-slider-thumb {
-  width: 14px;
-  height: 14px;
-  margin-top: -5px;
-  border: 2px solid #0A4DA2;
-  border-radius: 50%;
-  background: #fff;
-  cursor: grab;
-  appearance: none;
-  pointer-events: auto;
-}
-
-.flexibility-range-input::-moz-range-track {
-  height: 4px;
-  background: transparent;
-}
-
-.flexibility-range-input::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border: 2px solid #0A4DA2;
-  border-radius: 50%;
-  background: #fff;
-  cursor: grab;
-  pointer-events: auto;
-}
-
-.flexibility-range-input:focus-visible::-webkit-slider-thumb {
-  outline: 2px solid rgba(10, 77, 162, 0.35);
-  outline-offset: 3px;
-}
-</style>

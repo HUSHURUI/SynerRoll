@@ -3,7 +3,9 @@ import type {
   ComputeTaskListResponse,
   CreateTaskRequest,
   TaskDataResponse,
-  TaskFlexibilityResponse
+  TaskFlexibilityResponse,
+  TaskTraceDataResponse,
+  TaskTraceStepsResponse
 } from '~~/types/api'
 import { useApiClient } from './useApiClient'
 
@@ -84,6 +86,12 @@ export const useTaskApi = () => {
       return apiClient.get<TaskFlexibilityResponse>(
         `/task/${taskId}/flexibility${qs}`
       )
-    }
+    },
+
+    getTraceSteps: (taskId: string) =>
+      apiClient.get<TaskTraceStepsResponse>(`/task/${taskId}/trace`),
+
+    getTraceData: (taskId: string, step: number) =>
+      apiClient.get<TaskTraceDataResponse>(`/task/${taskId}/trace/${step}`)
   }
 }

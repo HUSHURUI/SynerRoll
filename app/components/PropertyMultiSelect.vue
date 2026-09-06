@@ -84,6 +84,7 @@ onUnmounted(() => {
             :checked="isSelected(opt.value)"
             class="property-multi-select__checkbox"
             @click.stop
+            @change="toggleSelect(opt.value)"
           />
           {{ opt.label }}
         </button>

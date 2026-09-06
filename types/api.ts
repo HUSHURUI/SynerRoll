@@ -105,6 +105,7 @@ export interface CreateTaskRequest {
 export interface TaskDataRow {
   sourceId: string
   varName: string
+  remark?: string
   layerId: string
   ts: string
   value: number
@@ -112,5 +113,19 @@ export interface TaskDataRow {
 
 export interface TaskDataResponse {
   label: string
+  rows: TaskDataRow[]
+}
+
+export interface TaskTraceStep {
+  step: number
+  layerId: string
+  simTime: string
+}
+
+export interface TaskTraceStepsResponse {
+  steps: TaskTraceStep[]
+}
+
+export interface TaskTraceDataResponse {
   rows: TaskDataRow[]
 }

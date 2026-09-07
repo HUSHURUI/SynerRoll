@@ -15,7 +15,7 @@ struct CostItem
     component_type::String     # 组件类型 (如 "CP")
     component_name::String     # 组件名称 (如 "燃煤机组1号")
     cost_type::String          # 成本类型 (如 "om_cost", "on_off_cost")
-    cost_label::String         # 显示标签 (如 "运维成本", "启停成本")
+    cost_label::String         # 显示标签 (如 "运维成本", "开停机成本")
     layer_id::String           # 时层ID
     value::Float64             # 成本值（元），可为负数（如售电收益）
     in_objective::Bool         # 是否进入目标函数
@@ -27,7 +27,7 @@ end
 
 const COST_LABELS = Dict{String,String}(
     "om_cost"          => "运维成本",
-    "on_off_cost"      => "启停成本",
+    "on_off_cost"      => "开停机成本",
     "adjust_cost"      => "调整成本",
     "cut_cost"         => "弃风/弃光成本",
     "purchase_cost"    => "购电成本",
@@ -54,7 +54,7 @@ end
 """
     calc_cp_on_off_cost(status_vector, on_off_cost_rate) -> Float64
 
-计算煤电启停成本：启停次数 × 单次成本
+计算煤电开停机成本：开停机次数 × 单次成本
 status_vector: 0或1的状态数组，状态变化计为一次开或停
 """
 function calc_cp_on_off_cost(status_vector::Vector{Float64}, on_off_cost_rate::Float64)
@@ -101,7 +101,7 @@ function calc_cp_costs(
     push!(items, CostItem(component_id, "CP", component_name, "om_cost", cost_label("om_cost"),
         layer_id, om_val, om_on, false, false))
 
-    # 启停成本
+    # 开停机成本
     if status_vector !== nothing
         on_off_on = get(get(params, :layer_settings, Dict()), "objectives", Dict()) |> d -> get(d, "on_off_objective_on", true)
         on_off_val = calc_cp_on_off_cost(status_vector, params.on_off_cost)
@@ -247,7 +247,7 @@ end
     calc_thermal_gen_costs(comp_type, component_id, component_name, power_values, params, layer_id; status_vector=nothing, planned_power=nothing) -> Vector{CostItem}
 
 计算气电/热电联产/电解槽组件的所有成本项。
-这些组件有：运维成本、启停成本、调整成本（与煤电类似）。
+这些组件有：运维成本、开停机成本、调整成本（与煤电类似）。
 """
 function calc_thermal_gen_costs(
     comp_type::String, component_id::String, component_name::String,
@@ -264,7 +264,7 @@ function calc_thermal_gen_costs(
     push!(items, CostItem(component_id, comp_type, component_name, "om_cost", cost_label("om_cost"),
         layer_id, om_val, om_on, false, false))
 
-    # 启停成本
+    # 开停机成本
     if status_vector !== nothing
         on_off_on = get(objectives, "on_off_objective_on", true)
         on_off_val = calc_cp_on_off_cost(status_vector, params.on_off_cost)

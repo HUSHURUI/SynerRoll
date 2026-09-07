@@ -39,6 +39,101 @@ function _normalize_optimizer_config(raw)
     return result
 end
 
+const CAPACITY_PLAN_OBJECTIVES = Set([
+    "total-cost-min",
+    "operating-cost-min",
+    "initial-investment-min",
+    "npv-max",
+    "lcoe-min",
+    "payback-period-min",
+    "irr-max",
+])
+
+function _normalize_percent(value, field::String)
+    number = Float64(value)
+    isfinite(number) && 0 <= number <= 100 || error("$(field) 必须在 0 到 100 之间")
+    return number
+end
+
+function _normalize_economics_config(raw)
+    config = _planning_dict(raw, "economics")
+    evaluator = string(get(config, "evaluator", OPERATING_OBJECTIVE_EVALUATOR_VERSION))
+    objective = string(get(config, "objective", "operating-cost-min"))
+    objective in CAPACITY_PLAN_OBJECTIVES || error("不支持的方案目标: $(objective)")
+
+    constraint_defaults = Dict(
+        "renewableConsumptionRate" => ("gte", 90.0),
+        "greenPowerShare" => ("gte", 50.0),
+        "purchasedPowerShare" => ("lte", 30.0),
+        "stability" => ("gte", 95.0),
+    )
+    raw_constraints = get(config, "technicalConstraints", Dict{String,Any}())
+    raw_constraints isa AbstractDict || error("economics.technicalConstraints 必须是对象")
+    constraints = Dict{String,Any}()
+    for (key, (default_operator, default_threshold)) in constraint_defaults
+        raw_constraint = get(raw_constraints, key, Dict{String,Any}())
+        raw_constraint isa AbstractDict || error("economics.technicalConstraints.$(key) 必须是对象")
+        operator = string(get(raw_constraint, "operator", default_operator))
+        operator in ("gte", "lte") || error("economics.technicalConstraints.$(key).operator 无效")
+        constraints[key] = Dict(
+            "enabled" => get(raw_constraint, "enabled", false) == true,
+            "operator" => operator,
+            "threshold" => _normalize_percent(get(raw_constraint, "threshold", default_threshold), "$(key).threshold"),
+            "unit" => "%",
+        )
+    end
+
+    economic_constraint_defaults = Dict(
+        "lifecycleYears" => ("gte", 20.0, "年"),
+        "interestRatePercent" => ("lte", 5.0, "%"),
+        "taxRatePercent" => ("lte", 25.0, "%"),
+        "targetIrrPercent" => ("gte", 8.0, "%"),
+    )
+    raw_economic_constraints = get(config, "economicConstraints", nothing)
+    legacy_financial = get(config, "financialParameters", Dict{String,Any}())
+    legacy_financial isa AbstractDict || error("economics.financialParameters 必须是对象")
+    if raw_economic_constraints === nothing
+        raw_economic_constraints = Dict{String,Any}(
+            key => Dict("enabled" => false, "threshold" => get(legacy_financial, key, default_threshold))
+            for (key, (_, default_threshold, _)) in economic_constraint_defaults
+        )
+    end
+    raw_economic_constraints isa AbstractDict || error("economics.economicConstraints 必须是对象")
+    economic_constraints = Dict{String,Any}()
+    for (key, (default_operator, default_threshold, unit)) in economic_constraint_defaults
+        raw_constraint = get(raw_economic_constraints, key, Dict{String,Any}())
+        raw_constraint isa AbstractDict || error("economics.economicConstraints.$(key) 必须是对象")
+        operator = string(get(raw_constraint, "operator", default_operator))
+        operator in ("gte", "lte") || error("economics.economicConstraints.$(key).operator 无效")
+        threshold = Float64(get(raw_constraint, "threshold", default_threshold))
+        if key == "lifecycleYears"
+            isfinite(threshold) && 1 <= threshold <= 100 || error("lifecycleYears.threshold 必须在 1 到 100 之间")
+        else
+            threshold = _normalize_percent(threshold, "$(key).threshold")
+        end
+        economic_constraints[key] = Dict(
+            "enabled" => get(raw_constraint, "enabled", false) == true,
+            "operator" => operator,
+            "threshold" => threshold,
+            "unit" => unit,
+        )
+    end
+
+    raw_extensions = get(config, "extensions", Dict{String,Any}())
+    raw_extensions isa AbstractDict || error("economics.extensions 必须是对象")
+    result = Dict{String,Any}(
+        "evaluator" => evaluator,
+        "currency" => string(get(config, "currency", "CNY")),
+        "schemaVersion" => "capacity-objective-config-v2",
+        "objective" => objective,
+        "technicalConstraints" => constraints,
+        "economicConstraints" => economic_constraints,
+        "extensions" => Dict{String,Any}(string(key) => value for (key, value) in raw_extensions),
+    )
+    economic_evaluator_from_config(result)
+    return result
+end
+
 function _normalize_clustering_config(raw, project_id::String)
     config = _planning_dict(raw, "clustering")
     dataset_id = String(strip(string(get(config, "datasetId", ""))))
@@ -73,8 +168,7 @@ function create_capacity_planning!(request::AbstractDict)
     variables = validate_capacity_variables(snapshot, canvas_id, variables_raw)
     clustering = _normalize_clustering_config(get(request, "clustering", nothing), project_id)
     optimizer = _normalize_optimizer_config(get(request, "optimizer", Dict()))
-    economics = _planning_dict(get(request, "economics", Dict("evaluator" => OPERATING_OBJECTIVE_EVALUATOR_VERSION)), "economics")
-    economic_evaluator_from_config(economics)
+    economics = _normalize_economics_config(get(request, "economics", Dict("evaluator" => OPERATING_OBJECTIVE_EVALUATOR_VERSION)))
     planning_layer_id = string(get(request, "planningLayerId", "1"))
     _planning_layer(snapshot, planning_layer_id)
 

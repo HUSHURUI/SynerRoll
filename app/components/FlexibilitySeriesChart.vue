@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import * as echarts from 'echarts'
 import type { FlexibilityPeriodResult } from '~~/types/api'
+import {
+  timeLabelToMinutes,
+  minutesToTimeLabel
+} from '~~/utils/timeLabel'
 
 const props = defineProps<{
   rows: FlexibilityPeriodResult[]
   direction: 'up' | 'down'
   deviceLabels?: Record<string, string>
+  simStartTime?: string
+  simEndTime?: string | null
+  simEndMinutes?: number
 }>()
 
 const emit = defineEmits<{
@@ -19,6 +26,11 @@ let resizeObserver: ResizeObserver | null = null
 const DAY_MINUTES = 24 * 60
 const rangeStartMinutes = ref(0)
 const rangeEndMinutes = ref(DAY_MINUTES)
+
+const simStartMinutes = computed(() => timeLabelToMinutes(props.simStartTime ?? '0:00'))
+const simEndMinutesComputed = computed(() =>
+  props.simEndMinutes ?? (props.simEndTime ? timeLabelToMinutes(props.simEndTime) : null)
+)
 
 const CONTRIBUTION_COLORS = [
   '#165DFF',
@@ -51,26 +63,21 @@ const DEVICE_TYPE_LABELS: Record<string, string> = {
 
 const directionLabel = computed(() => props.direction === 'up' ? '上调' : '下调')
 
-const toMinutes = (timestamp: string): number => {
-  const [hour = '0', minute = '0'] = timestamp.split(':')
-  return Number(hour) * 60 + Number(minute)
-}
-
 const directionRows = computed(() => props.rows
   .filter(row => row.direction === props.direction)
   .slice()
-  .sort((a, b) => toMinutes(a.timestamp) - toMinutes(b.timestamp)))
+  .sort((a, b) => timeLabelToMinutes(a.timestamp) - timeLabelToMinutes(b.timestamp)))
 
 const visibleRows = computed(() => directionRows.value.filter(row => {
-  const timestamp = toMinutes(row.timestamp)
+  const timestamp = timeLabelToMinutes(row.timestamp)
   return timestamp >= rangeStartMinutes.value && timestamp < rangeEndMinutes.value
 }))
 
 const sliderStepMinutes = computed(() => {
   const steps = directionRows.value
     .map(row => {
-      const start = toMinutes(row.timestamp)
-      let end = toMinutes(row.next_timestamp)
+      const start = timeLabelToMinutes(row.timestamp)
+      let end = timeLabelToMinutes(row.next_timestamp)
       if (end <= start) end += DAY_MINUTES
       return end - start
     })
@@ -78,23 +85,23 @@ const sliderStepMinutes = computed(() => {
   return Math.min(...steps, 5)
 })
 
-/** 滑杆最大值：取数据中最晚时间戳，向上取整到整刻钟，兜底 DAY_MINUTES */
+/** 滑杆最大值：取数据中最晚时间戳，向上取整到整刻钟，兜底 DAY_MINUTES，
+ *  并不超过仿真结束时间。 */
 const sliderMax = computed(() => {
   let maxMinute = 0
   for (const row of props.rows) {
-    const ts = toMinutes(row.timestamp)
-    let next = toMinutes(row.next_timestamp)
+    const ts = timeLabelToMinutes(row.timestamp)
+    let next = timeLabelToMinutes(row.next_timestamp)
     if (next <= ts) next += DAY_MINUTES
     if (next > maxMinute) maxMinute = next
   }
-  return maxMinute > 0 ? Math.ceil(maxMinute / 15) * 15 : DAY_MINUTES
+  maxMinute = maxMinute > 0 ? Math.ceil(maxMinute / 15) * 15 : DAY_MINUTES
+  const simEnd = simEndMinutesComputed.value
+  if (simEnd !== null) {
+    maxMinute = Math.min(maxMinute, simEnd)
+  }
+  return maxMinute
 })
-
-const formatMinutes = (minutes: number): string => {
-  const hour = Math.floor(minutes / 60)
-  const minute = minutes % 60
-  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
-}
 
 const updateRangeStart = (value: number) => {
   rangeStartMinutes.value = value
@@ -131,8 +138,8 @@ const contributionItems = computed<ContributionItem[]>(() => {
   const totals = new Map<string, { label: string; value: number }>()
 
   for (const row of visibleRows.value) {
-    const start = toMinutes(row.timestamp)
-    let end = toMinutes(row.next_timestamp)
+    const start = timeLabelToMinutes(row.timestamp)
+    let end = timeLabelToMinutes(row.next_timestamp)
     if (end <= start) end += DAY_MINUTES
     const durationHours = Math.max(0, end - start) / 60
 
@@ -241,21 +248,32 @@ const render = () => {
   })
 }
 
-// 数据变化时，让滑块始终锚定在滑杆最右侧，并展示从 0 到最新时刻的完整窗口，
+// 数据边界向右扩展时，让滑块始终锚定在滑杆最右侧，并展示从 sim_start 到最新时刻的完整窗口，
 // 使 ECharts 横坐标随数据增长而变长、图形逐渐收缩。
 watch(sliderMax, (max, prevMax) => {
   const previous = prevMax ?? 0
   if (max > previous) {
-    rangeStartMinutes.value = 0
+    rangeStartMinutes.value = simStartMinutes.value
     rangeEndMinutes.value = max
   }
   else if (rangeEndMinutes.value > max) {
     rangeEndMinutes.value = max
   }
   if (rangeStartMinutes.value >= max) {
-    rangeStartMinutes.value = 0
+    rangeStartMinutes.value = simStartMinutes.value
   }
-}, { immediate: true })
+})
+
+watch(
+  [() => props.simStartTime, () => props.simEndTime, () => props.simEndMinutes],
+  () => {
+    const start = simStartMinutes.value
+    const end = simEndMinutesComputed.value ?? sliderMax.value
+    rangeStartMinutes.value = start
+    rangeEndMinutes.value = Math.min(sliderMax.value, end)
+  },
+  { immediate: true }
+)
 
 watch(
   [() => JSON.stringify(props.rows), () => props.direction, rangeStartMinutes, rangeEndMinutes],
@@ -335,7 +353,7 @@ onBeforeUnmount(() => {
         :min="0"
         :max="sliderMax"
         :step="sliderStepMinutes"
-        :format-label="formatMinutes"
+        :format-label="minutesToTimeLabel"
         @update:start="updateRangeStart"
         @update:end="updateRangeEnd"
       />

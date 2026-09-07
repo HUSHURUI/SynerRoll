@@ -6,6 +6,7 @@ import type {
   CapacityPlanningResult,
   CapacityPlanningTask,
   CapacityPlanningFormSchema,
+  CapacityEconomicsConfig,
   ClusteringConfig,
   ImportBoundaryDatasetRequest,
   ScenarioPreviewResult,
@@ -79,7 +80,11 @@ export const useCapacityPlanningApi = () => {
       `/capacity-planning?projectId=${encodeURIComponent(projectId)}`
     )
 
-  const updatePlanningConfig = (planningId: string, config: { clustering?: Partial<ClusteringConfig>; variables?: CapacityVariableDraft[] }) =>
+  const updatePlanningConfig = (planningId: string, config: {
+    clustering?: Partial<ClusteringConfig>
+    variables?: CapacityVariableDraft[]
+    economics?: CapacityEconomicsConfig
+  }) =>
     apiClient.mutate<CapacityPlanningTask>(
       `/capacity-planning/${encodeURIComponent(planningId)}/config`,
       {

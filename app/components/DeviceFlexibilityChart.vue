@@ -1,29 +1,37 @@
 <script setup lang="ts">
 import * as echarts from 'echarts'
 import type { DeviceFlexibilityResult } from '~~/types/api'
+import {
+  timeLabelToMinutes,
+  isTimeInRange
+} from '~~/utils/timeLabel'
 
 const props = defineProps<{
   title: string
   deviceType: string
   rows: DeviceFlexibilityResult[]
   boundary?: boolean
+  simStartTime?: string
+  simEndTime?: string | null
 }>()
 
 const chartRef = ref<HTMLDivElement | null>(null)
 let chart: echarts.ECharts | null = null
 let resizeObserver: ResizeObserver | null = null
 
-const toMinutes = (timestamp: string): number => {
-  const [hour = '0', minute = '0'] = timestamp.split(':')
-  return Number(hour) * 60 + Number(minute)
-}
+const startTime = computed(() => props.simStartTime ?? '0:00')
+const endTime = computed(() => props.simEndTime ?? null)
 
-const timeline = computed(() => [...new Set(props.rows.map(row => row.timestamp))]
-  .sort((a, b) => toMinutes(a) - toMinutes(b)))
+const visibleRows = computed(() =>
+  props.rows.filter(row => isTimeInRange(row.timestamp, startTime.value, endTime.value))
+)
+
+const timeline = computed(() => [...new Set(visibleRows.value.map(row => row.timestamp))]
+  .sort((a, b) => timeLabelToMinutes(a) - timeLabelToMinutes(b)))
 
 const valueByDirection = (direction: 'up' | 'down', field: 'device_flexibility' | 'device_contribution') => {
   const values = new Map(
-    props.rows
+    visibleRows.value
       .filter(row => row.direction === direction)
       .map(row => [row.timestamp, Number(row[field] ?? row.device_flexibility)])
   )
@@ -32,7 +40,7 @@ const valueByDirection = (direction: 'up' | 'down', field: 'device_flexibility' 
 
 const peak = (direction: 'up' | 'down'): number => Math.max(
   0,
-  ...props.rows
+  ...visibleRows.value
     .filter(row => row.direction === direction)
     .map(row => Number(row.device_flexibility) || 0)
 )
@@ -127,7 +135,7 @@ const render = () => {
   })
 }
 
-watch(() => JSON.stringify(props.rows), render)
+watch(() => JSON.stringify(props.rows) + props.simStartTime + props.simEndTime, render)
 
 onMounted(() => {
   render()

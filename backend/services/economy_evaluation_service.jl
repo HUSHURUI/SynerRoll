@@ -34,11 +34,12 @@ end
 
 # ───── 辅助函数 ──────────────────────────────────────────────────────────
 
-"""安全读取时序数据，不存在时返回空数组"""
-function _safe_get_ts(db_path::String, data_key::String)::Vector{Float64}
+"""安全读取时序数据并按仿真范围截取，不存在时返回空数组"""
+function _safe_get_ts_values(db_path::String, data_key::String, sim_start::String, sim_end::Union{String,Nothing})::Vector{Float64}
     ts = get_ts(db_path, data_key)
     ts === nothing && return Float64[]
-    return ts.values
+    filtered = truncate_timeseries(ts, sim_start, sim_end)
+    return filtered.values
 end
 
 """从 project.json 中获取时层列表（按 id 排序）"""
@@ -165,41 +166,41 @@ end
 
 从覆盖模式的数据读取组件物理量。
 """
-function load_component_data(store_path::String, comp_code::String, comp_type::String, layer_id::String)::Dict{String,Vector{Float64}}
+function load_component_data(store_path::String, comp_code::String, comp_type::String, layer_id::String, sim_start::String, sim_end::Union{String,Nothing})::Dict{String,Vector{Float64}}
     data = Dict{String,Vector{Float64}}()
 
     if comp_type == "CP"
-        data["power"] = _safe_get_ts(store_path, "CP|E_CP_$(comp_code)|power#$(layer_id)")
-        data["status"] = _safe_get_ts(store_path, "CP|F_CP_$(comp_code)|power#$(layer_id)")
+        data["power"] = _safe_get_ts_values(store_path, "CP|E_CP_$(comp_code)|power#$(layer_id)", sim_start, sim_end)
+        data["status"] = _safe_get_ts_values(store_path, "CP|F_CP_$(comp_code)|power#$(layer_id)", sim_start, sim_end)
     elseif comp_type == "WT"
-        data["power"] = _safe_get_ts(store_path, "WT|E_WT_$(comp_code)|power#$(layer_id)")
-        data["cut"] = _safe_get_ts(store_path, "WT|E_WT_cut_$(comp_code)|cut#$(layer_id)")
+        data["power"] = _safe_get_ts_values(store_path, "WT|E_WT_$(comp_code)|power#$(layer_id)", sim_start, sim_end)
+        data["cut"] = _safe_get_ts_values(store_path, "WT|E_WT_cut_$(comp_code)|cut#$(layer_id)", sim_start, sim_end)
     elseif comp_type == "PV"
-        data["power"] = _safe_get_ts(store_path, "PV|E_PV_$(comp_code)|power#$(layer_id)")
-        data["cut"] = _safe_get_ts(store_path, "PV|E_PV_cut_$(comp_code)|cut#$(layer_id)")
+        data["power"] = _safe_get_ts_values(store_path, "PV|E_PV_$(comp_code)|power#$(layer_id)", sim_start, sim_end)
+        data["cut"] = _safe_get_ts_values(store_path, "PV|E_PV_cut_$(comp_code)|cut#$(layer_id)", sim_start, sim_end)
     elseif comp_type == "ES"
-        data["energy"] = _safe_get_ts(store_path, "ES|E_ES_$(comp_code)|energy#$(layer_id)")
-        data["input"] = _safe_get_ts(store_path, "ES|E_ES_in_$(comp_code)|power#$(layer_id)")
-        data["output"] = _safe_get_ts(store_path, "ES|E_ES_out_$(comp_code)|power#$(layer_id)")
+        data["energy"] = _safe_get_ts_values(store_path, "ES|E_ES_$(comp_code)|energy#$(layer_id)", sim_start, sim_end)
+        data["input"] = _safe_get_ts_values(store_path, "ES|E_ES_in_$(comp_code)|power#$(layer_id)", sim_start, sim_end)
+        data["output"] = _safe_get_ts_values(store_path, "ES|E_ES_out_$(comp_code)|power#$(layer_id)", sim_start, sim_end)
     elseif comp_type == "GP"
-        data["power"] = _safe_get_ts(store_path, "GP|E_GP_$(comp_code)|power#$(layer_id)")
-        data["status"] = _safe_get_ts(store_path, "GP|F_GP_$(comp_code)|power#$(layer_id)")
+        data["power"] = _safe_get_ts_values(store_path, "GP|E_GP_$(comp_code)|power#$(layer_id)", sim_start, sim_end)
+        data["status"] = _safe_get_ts_values(store_path, "GP|F_GP_$(comp_code)|power#$(layer_id)", sim_start, sim_end)
     elseif comp_type == "CHP"
-        data["power"] = _safe_get_ts(store_path, "CHP|E_CHP_$(comp_code)|power#$(layer_id)")
-        data["status"] = _safe_get_ts(store_path, "CHP|F_CHP_$(comp_code)|power#$(layer_id)")
+        data["power"] = _safe_get_ts_values(store_path, "CHP|E_CHP_$(comp_code)|power#$(layer_id)", sim_start, sim_end)
+        data["status"] = _safe_get_ts_values(store_path, "CHP|F_CHP_$(comp_code)|power#$(layer_id)", sim_start, sim_end)
     elseif comp_type == "ET"
-        data["power"] = _safe_get_ts(store_path, "ET|E_ET_$(comp_code)|power#$(layer_id)")
-        data["status"] = _safe_get_ts(store_path, "ET|F_ET_$(comp_code)|power#$(layer_id)")
+        data["power"] = _safe_get_ts_values(store_path, "ET|E_ET_$(comp_code)|power#$(layer_id)", sim_start, sim_end)
+        data["status"] = _safe_get_ts_values(store_path, "ET|F_ET_$(comp_code)|power#$(layer_id)", sim_start, sim_end)
     elseif comp_type == "GRID"
-        data["sell"] = _safe_get_ts(store_path, "GRID|E_GRID_in_$(comp_code)|power#$(layer_id)")
-        data["buy"] = _safe_get_ts(store_path, "GRID|E_GRID_out_$(comp_code)|power#$(layer_id)")
+        data["sell"] = _safe_get_ts_values(store_path, "GRID|E_GRID_in_$(comp_code)|power#$(layer_id)", sim_start, sim_end)
+        data["buy"] = _safe_get_ts_values(store_path, "GRID|E_GRID_out_$(comp_code)|power#$(layer_id)", sim_start, sim_end)
     elseif comp_type in ("HS", "FS", "CS", "PS")
         # 其他储能类型
-        data["energy"] = _safe_get_ts(store_path, "$(comp_type)|E_$(comp_type)_$(comp_code)|energy#$(layer_id)")
-        data["input"] = _safe_get_ts(store_path, "$(comp_type)|E_$(comp_type)_in_$(comp_code)|power#$(layer_id)")
-        data["output"] = _safe_get_ts(store_path, "$(comp_type)|E_$(comp_type)_out_$(comp_code)|power#$(layer_id)")
+        data["energy"] = _safe_get_ts_values(store_path, "$(comp_type)|E_$(comp_type)_$(comp_code)|energy#$(layer_id)", sim_start, sim_end)
+        data["input"] = _safe_get_ts_values(store_path, "$(comp_type)|E_$(comp_type)_in_$(comp_code)|power#$(layer_id)", sim_start, sim_end)
+        data["output"] = _safe_get_ts_values(store_path, "$(comp_type)|E_$(comp_type)_out_$(comp_code)|power#$(layer_id)", sim_start, sim_end)
     elseif comp_type == "HYDRO"
-        data["power"] = _safe_get_ts(store_path, "HYDRO|E_HYDRO_$(comp_code)|power#$(layer_id)")
+        data["power"] = _safe_get_ts_values(store_path, "HYDRO|E_HYDRO_$(comp_code)|power#$(layer_id)", sim_start, sim_end)
     end
 
     return data
@@ -210,8 +211,11 @@ end
 
 读取松弛变量数据并计算惩罚成本。
 """
-function load_slack_data(store_path::String, layer_id::String, penalty_rate::Float64)::Vector{CostItem}
+function load_slack_data(store_path::String, layer_id::String, penalty_rate::Float64, sim_start::String, sim_end::Union{String,Nothing})::Vector{CostItem}
     items = CostItem[]
+
+    start_min = time_label_to_minutes(sim_start)
+    end_min = sim_end !== nothing ? time_label_to_minutes(sim_end) : nothing
 
     # 查询所有松弛变量的 meta 记录
     store = get_store(store_path)
@@ -232,7 +236,11 @@ function load_slack_data(store_path::String, layer_id::String, penalty_rate::Flo
                 "SELECT ts, value FROM time_series_data WHERE series_id=?", [series_id])
             isempty(data_rows[1]) && continue
 
-            values = Vector{Float64}(data_rows[2])
+            values = Float64[]
+            for (ts_label, val) in zip(data_rows[1], data_rows[2])
+                m = time_label_to_minutes(ts_label)
+                m >= start_min && (end_min === nothing || m < end_min) && push!(values, val)
+            end
 
             if occursin("SHORTAGE", var_name_str)
                 val = sum(values) * penalty_rate
@@ -372,15 +380,24 @@ function build_layer_summary(layer_id::String, layer_name::String, cost_items::V
 end
 
 """
-    evaluate_task_economy(task_id, project_json) -> Dict
+    evaluate_task_economy(task_id, project_json; sim_start_time, sim_end_time) -> Dict
 
 计算任务的完整经济性指标。返回可直接 JSON 序列化的 Dict。
 """
-function evaluate_task_economy(task_id::String, project_json::Dict)
+function evaluate_task_economy(
+    task_id::String,
+    project_json::Dict;
+    sim_start_time::Union{String,Nothing}=nothing,
+    sim_end_time::Union{String,Nothing}=nothing,
+)
     store_path = joinpath(TASKS_DATA_ROOT, task_id, "timeseries.db")
     if !isfile(store_path)
         error("任务数据不存在: timeseries.db 未找到")
     end
+
+    sim_start = sim_start_time !== nothing ? sim_start_time : "0:00"
+    sim_end = sim_end_time
+    sim_end === nothing && error("缺少仿真结束时间，无法计算经济性指标")
 
     # 解析项目结构
     layers = _get_layers(project_json)
@@ -420,7 +437,7 @@ function evaluate_task_economy(task_id::String, project_json::Dict)
             comp_type in ("ELOAD", "HLOAD", "QLOAD") && continue
 
             # 读取物理量数据
-            power_data = load_component_data(store_path, comp_code, comp_type, layer_id)
+            power_data = load_component_data(store_path, comp_code, comp_type, layer_id, sim_start, sim_end)
 
             # 检查数据是否存在（全为空则跳过）
             has_data = false
@@ -441,7 +458,7 @@ function evaluate_task_economy(task_id::String, project_json::Dict)
         end
 
         # 读取松弛变量
-        slack_items = load_slack_data(store_path, layer_id, slack_penalty)
+        slack_items = load_slack_data(store_path, layer_id, slack_penalty, sim_start, sim_end)
         append!(layer_cost_items, slack_items)
 
         # 构建层汇总

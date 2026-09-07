@@ -292,7 +292,11 @@ end
         end
         project_json = JSON3.read(read(project_path, String), Dict)
 
-        result = evaluate_task_economy(id, project_json)
+        result = evaluate_task_economy(
+            id, project_json;
+            sim_start_time=get(task, "sim_start_time", nothing),
+            sim_end_time=get(task, "sim_end_time", nothing),
+        )
         return json_success(data = result)
     catch e
         return json_error("计算经济性指标异常: $(sprint(showerror, e))")

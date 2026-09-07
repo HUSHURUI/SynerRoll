@@ -20,19 +20,16 @@ import {
   FLEXIBILITY_REQUIREMENT_LABELS,
   FLEXIBILITY_REQUIREMENT_OPTIONS
 } from '~~/config/flexibility'
+import {
+  timeLabelToMinutes,
+  minutesToTimeLabel
+} from '~~/utils/timeLabel'
 import PropertyText from '../../components/PropertyText.vue'
 import PropertySelect from '../../components/PropertySelect.vue'
 import DeviceOutputAnalysis from '~/components/DeviceOutputAnalysis.vue'
 import PieChart from '~/components/PieChart.vue'
 
 definePageMeta({ title: '结果分析 - SynerRoll' })
-
-/** "H:MM" → 分钟数 */
-function tsToMinutes(ts: string): number {
-  const parts = ts.split(':')
-  if (parts.length < 2) return 0
-  return parseInt(parts[0]!, 10) * 60 + parseInt(parts[1]!, 10)
-}
 
 function durationToMinutes(duration: string): number | null {
   const match = /^(\d+)(h|m|s)$/.exec(duration.trim())
@@ -41,12 +38,6 @@ function durationToMinutes(duration: string): number | null {
   if (match[2] === 'h') return value * 60
   if (match[2] === 'm') return value
   return value % 60 === 0 ? value / 60 : null
-}
-
-function minutesToTimestamp(minutes: number): string {
-  const hour = Math.floor(minutes / 60)
-  const minute = minutes % 60
-  return `${hour}:${String(minute).padStart(2, '0')}`
 }
 
 const taskApi = useTaskApi()
@@ -78,6 +69,31 @@ const activeSection = ref<string>('overview')
 const selectedTaskId = ref<string | null>(null)
 const selectedTask = ref<ComputeTask | null>(null)
 const currentProject = ref<Project | null>(null)
+
+/** 当前任务的仿真范围；end 为 null 时回退到时层 1 的 length */
+const taskSimRange = computed(() => {
+  const start = selectedTask.value?.sim_start_time ?? '0:00'
+  const end = selectedTask.value?.sim_end_time ?? null
+
+  let endMinutes = end ? timeLabelToMinutes(end) : null
+  if (endMinutes === null) {
+    const layer1 = currentProject.value?.layerConfig?.layers.find(l => l.id === '1')
+    const length = layer1?.length
+    if (length) {
+      const match = /^(\d+)(h|m|s)$/.exec(String(length).trim())
+      if (match) {
+        const value = parseInt(match[1], 10)
+        const unit = match[2]
+        if (unit === 'h') endMinutes = value * 60
+        else if (unit === 'm') endMinutes = value
+        else if (unit === 's') endMinutes = value / 60
+      }
+    }
+    if (endMinutes === null) endMinutes = 24 * 60
+  }
+
+  return { start, end, endMinutes }
+})
 
 // ───── 任务列表弹窗 ─────
 const showTaskListDialog = ref(false)
@@ -228,7 +244,7 @@ const flexibilityPeriods = computed(() =>
   (flexibilityData.value?.periods ?? [])
     .slice()
     .sort((a, b) => {
-      const timeDiff = tsToMinutes(a.timestamp) - tsToMinutes(b.timestamp)
+      const timeDiff = timeLabelToMinutes(a.timestamp) - timeLabelToMinutes(b.timestamp)
       return timeDiff || FLEXIBILITY_DIRECTION_ORDER[a.direction] - FLEXIBILITY_DIRECTION_ORDER[b.direction]
     })
 )
@@ -300,7 +316,7 @@ const deviceFlexibilityGroups = computed<DeviceFlexibilityGroup[]>(() => {
     .map(group => ({
       ...group,
       rows: group.rows.slice().sort((a, b) => {
-        const timeDiff = tsToMinutes(a.timestamp) - tsToMinutes(b.timestamp)
+        const timeDiff = timeLabelToMinutes(a.timestamp) - timeLabelToMinutes(b.timestamp)
         return timeDiff || a.direction.localeCompare(b.direction)
       })
     }))
@@ -454,7 +470,7 @@ const reloadLiveData = async (taskId: string) => {
       }
       for (const key of Object.keys(merged)) {
         for (const lid of Object.keys(merged[key]!)) {
-          merged[key]![lid]!.sort((a, b) => tsToMinutes(a.ts) - tsToMinutes(b.ts))
+          merged[key]![lid]!.sort((a, b) => timeLabelToMinutes(a.ts) - timeLabelToMinutes(b.ts))
         }
       }
       liveData.value = merged
@@ -866,7 +882,7 @@ const expectedFlexibilityTimestamps = computed<string[]>(() => {
   for (let offset = 0; offset < durationMinutes; offset += stepMinutes) {
     const timestampMinutes = startMinutes + offset
     if (timestampMinutes + stepMinutes > endMinutes) break
-    timestamps.push(minutesToTimestamp(timestampMinutes))
+    timestamps.push(minutesToTimeLabel(timestampMinutes))
   }
   return timestamps
 })
@@ -876,7 +892,7 @@ const expectedRequirementTimestamps = computed(() => {
   const stepMinutes = durationToMinutes(flexibilityEvaluationLayer.value?.step ?? '')
   if (!stepMinutes) return []
   return expectedFlexibilityTimestamps.value.map(timestamp =>
-    minutesToTimestamp(tsToMinutes(timestamp) + stepMinutes)
+    minutesToTimeLabel(timeLabelToMinutes(timestamp) + stepMinutes)
   )
 })
 
@@ -1284,6 +1300,8 @@ const createTask = async () => {
                   :title="getChartDisplayName(String(key))"
                   :unit="liveDataUnits[String(key)] ?? 'kW'"
                   :layer-names="layerNames"
+                  :sim-start-time="taskSimRange.start"
+                  :sim-end-time="taskSimRange.end"
                 />
               </div>
             </div>
@@ -1362,11 +1380,17 @@ const createTask = async () => {
                   :rows="flexibilityPeriods"
                   :device-labels="codeToLabel"
                   direction="up"
+                  :sim-start-time="taskSimRange.start"
+                  :sim-end-time="taskSimRange.end"
+                  :sim-end-minutes="taskSimRange.endMinutes"
                 />
                 <FlexibilitySeriesChart
                   :rows="flexibilityPeriods"
                   :device-labels="codeToLabel"
                   direction="down"
+                  :sim-start-time="taskSimRange.start"
+                  :sim-end-time="taskSimRange.end"
+                  :sim-end-minutes="taskSimRange.endMinutes"
                 />
               </div>
 
@@ -1405,6 +1429,8 @@ const createTask = async () => {
                 :device-type="device.deviceType"
                 :rows="device.rows"
                 :boundary="device.boundary"
+                :sim-start-time="taskSimRange.start"
+                :sim-end-time="taskSimRange.end"
               />
             </div>
 
@@ -1438,6 +1464,8 @@ const createTask = async () => {
                     :live-data="liveData"
                     :layer-id="layer.value"
                     :code-to-label="codeToLabel"
+                    :sim-start-time="taskSimRange.start"
+                    :sim-end-time="taskSimRange.end"
                   />
                 </div>
               </div>
@@ -1453,7 +1481,8 @@ const createTask = async () => {
               :live-data="liveData"
               :live-data-units="liveDataUnits"
               :layer-options="layerOptions"
-              :sim-end-time="selectedTask.sim_end_time"
+              :sim-start-time="taskSimRange.start"
+              :sim-end-time="taskSimRange.end"
             />
           </div>
 
@@ -1480,9 +1509,9 @@ const createTask = async () => {
               <div
                 v-for="layer in economyData.layers"
                 :key="layer.layerId"
-                class="rounded-xl border border-app-border bg-white p-4 space-y-4"
+                class="border border-app-border bg-white p-4 space-y-4"
               >
-                <h3 class="text-sm font-semibold text-app-text">{{ layer.layerName }}</h3>
+                <h3 class="">{{ layer.layerName }}</h3>
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <!-- 饼图：按设备-成本项分项 -->
                   <div v-if="economyLayerPieItems[layer.layerId]?.length > 0">
@@ -1490,14 +1519,14 @@ const createTask = async () => {
                       title="目标函数组成"
                       :items="economyLayerPieItems[layer.layerId]"
                     />
-                    <div class="mt-2 text-xs text-app-muted px-4">
+                    <div class="text-sm text-app-muted px-4">
                       目标函数值（不含松弛惩罚）：
                       <span class="font-semibold text-app-text">¥{{ layer.objectiveValue.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
                     </div>
                   </div>
 
                   <!-- 松弛变量警告 -->
-                  <div v-if="layer.hasSlack" class="rounded-xl border border-orange-300 bg-orange-50 p-4">
+                  <div v-if="layer.hasSlack" class="border border-orange-300 bg-orange-50 p-4">
                     <div class="flex items-center gap-2 text-orange-700 font-semibold text-sm mb-2">
                       ⚠️ 存在能量不平衡
                     </div>
@@ -1510,9 +1539,9 @@ const createTask = async () => {
                   </div>
 
                   <!-- 层汇总卡片 -->
-                  <div class="rounded-xl border border-app-border bg-white p-4 space-y-3">
-                    <h3 class="text-sm font-semibold text-app-text">层汇总</h3>
-                    <div class="grid grid-cols-2 gap-2 text-xs">
+                  <div class="bg-white space-y-3">
+                    <h3 class="bg-gray-100 p-2 text-sm text-app-text">经济性指标汇总</h3>
+                    <div class="grid grid-cols-2 gap-2 text-sm p-2">
                       <div>
                         <span class="text-app-muted">总成本：</span>
                         <span class="font-medium">¥{{ (layer.totalCost ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
@@ -1536,7 +1565,7 @@ const createTask = async () => {
               </div>
 
               <!-- 各时层经济性对比表格 -->
-              <div class="rounded-xl border border-app-border bg-white overflow-hidden">
+              <div class="border border-app-border bg-white overflow-hidden">
                 <h3 class="text-sm font-semibold text-app-text px-4 pt-3 pb-2">各时层经济性对比</h3>
                 <div class="overflow-x-auto">
                   <table class="w-full text-xs">
@@ -1578,13 +1607,13 @@ const createTask = async () => {
               </div>
 
               <!-- 设备经济性明细 -->
-              <div class="rounded-xl border border-app-border bg-white p-4">
+              <div class="border border-app-border bg-white p-4">
                 <h3 class="text-sm font-semibold text-app-text mb-3">设备经济性明细</h3>
                 <div v-if="economySelectedLayerSummary" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                   <div
                     v-for="(value, compKey) in economySelectedLayerSummary.componentBreakdown"
                     :key="compKey"
-                    class="rounded-lg border border-app-border p-3 bg-gray-50"
+                    class="rounded-[4px] border border-app-border p-3 bg-white shadow-sm"
                   >
                     <div class="text-xs font-semibold text-app-text mb-2">{{ compKey }}</div>
                     <div class="text-sm font-medium">¥{{ value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</div>

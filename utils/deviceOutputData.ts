@@ -257,14 +257,12 @@ export function convertDeviceOutputValue(value: number, fromUnit: string, toUnit
   return value * from.factor / to.factor
 }
 
+import { minutesToTimeLabel, timeLabelToMinutes } from '~~/utils/timeLabel'
+
 export function timestampToMinutes(timestamp: string): number {
-  const [hour = '0', minute = '0'] = timestamp.split(':')
-  return Number(hour) * 60 + Number(minute)
+  return timeLabelToMinutes(timestamp)
 }
 
 export function minutesToTimestamp(minutes: number): string {
-  const safeMinutes = Math.max(0, Math.round(minutes))
-  const hour = Math.floor(safeMinutes / 60)
-  const minute = safeMinutes % 60
-  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+  return minutesToTimeLabel(Math.max(0, Math.round(minutes)))
 }

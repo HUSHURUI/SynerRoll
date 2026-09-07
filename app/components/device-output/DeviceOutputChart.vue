@@ -41,6 +41,7 @@ const props = defineProps<{
   traceOptions: TaskTraceStep[]
   traceLoading: boolean
   traceError?: string
+  minimumMinute?: number
   maximumMinute?: number
 }>()
 
@@ -102,6 +103,7 @@ const dataMinutes = computed(() => displayedSeries.value.flatMap((item) => {
 }).filter(Number.isFinite))
 
 const minimumMinute = computed(() => {
+  if (props.minimumMinute !== undefined) return props.minimumMinute
   if (props.analysisMode !== 'point' || !dataMinutes.value.length) return 0
   return Math.min(...dataMinutes.value)
 })
@@ -436,6 +438,7 @@ watch(() => JSON.stringify([
   props.analysisMode,
   props.traceStep,
   props.maximumMinute,
+  props.minimumMinute,
   props.zoomStart,
   props.zoomEnd
 ]), () => {

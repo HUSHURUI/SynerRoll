@@ -149,6 +149,12 @@ end
             end
         end
 
+
+        # 更新方案目标、技术性约束和经济性约束
+        if haskey(body, "economics")
+            new_config["economics"] = _normalize_economics_config(get(body, "economics", Dict{String,Any}()))
+        end
+
         update_planning_config!(planning_id, new_config)
         return json_success(data = get_planning_task(planning_id))
     catch e

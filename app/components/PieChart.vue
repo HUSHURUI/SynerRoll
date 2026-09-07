@@ -40,9 +40,9 @@ const segments = computed(() => {
 </script>
 
 <template>
-  <div class="rounded-xl border border-app-border bg-white p-4">
-    <div class="mb-4">
-      <h3 class="text-sm font-semibold text-app-text">{{ title }}</h3>
+  <div class="bg-white">
+    <div class="mb-2">
+      <h3 class="bg-gray-100 p-2 text-sm text-app-text">{{ title }}</h3>
     </div>
     <div class="flex items-center gap-4">
       <svg viewBox="0 0 180 180" class="h-44 w-44 shrink-0">

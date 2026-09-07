@@ -74,6 +74,23 @@ function get_values(ts::TimeSeries, times::Vector{String})
     return [get_value(ts, time) for time in times]
 end
 
+"""
+    truncate_timeseries(ts::TimeSeries, sim_start::String, sim_end::Union{String,Nothing})
+
+按仿真范围 [sim_start, sim_end) 截取时序数据。
+sim_end 为 nothing 时表示无上界，保留 sim_start 之后的全部数据。
+"""
+function truncate_timeseries(ts::TimeSeries, sim_start::String, sim_end::Union{String,Nothing})
+    start_min = time_label_to_minutes(sim_start)
+    end_min = sim_end !== nothing ? time_label_to_minutes(sim_end) : nothing
+
+    mask = map(ts.timestamps) do t
+        m = time_label_to_minutes(t)
+        m >= start_min && (end_min === nothing || m < end_min)
+    end
+    return TimeSeries(ts.timestamps[mask], ts.values[mask])
+end
+
 mutable struct SQLiteTimeSeriesStore
     db::SQLite.DB
     write_lock::ReentrantLock

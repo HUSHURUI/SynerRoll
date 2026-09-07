@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import * as echarts from 'echarts'
+import {
+  timeLabelToMinutes,
+  minutesToTimeLabel
+} from '~~/utils/timeLabel'
 
 interface Point {
   ts: string
@@ -17,6 +21,8 @@ const props = defineProps<{
   layerId: string
   /** 节点 code → 设备名称映射，如 { "7e8a": "风机1" } */
   codeToLabel: Record<string, string>
+  simStartTime?: string
+  simEndTime?: string | null
 }>()
 
 // ───── 变量解析辅助 ─────
@@ -94,10 +100,15 @@ const PALETTE = [
 ]
 
 function calcContribution(vars: string[]): ContributionItem[] {
+  const startMin = timeLabelToMinutes(props.simStartTime ?? '0:00')
+  const endMin = props.simEndTime ? timeLabelToMinutes(props.simEndTime) : Infinity
   const deviceMap = new Map<string, number>()
   for (const varName of vars) {
     const code = extractCode(varName)
-    const data = getVarData(varName)
+    const data = getVarData(varName).filter(p => {
+      const m = timeLabelToMinutes(p.ts)
+      return m >= startMin && m < endMin
+    })
     const totalEnergy = data.reduce((sum, p) => sum + Math.abs(p.value), 0)
     deviceMap.set(code, (deviceMap.get(code) ?? 0) + totalEnergy)
   }
@@ -126,42 +137,37 @@ const sinkTotal = computed(() => sinkContribution.value.reduce((s, d) => s + d.v
 const chartRef = ref<HTMLDivElement | null>(null)
 let chartInstance: echarts.ECharts | null = null
 
-/** "H:MM" → 分钟数 */
-function tsToMinutes(ts: string): number {
-  const parts = ts.split(':')
-  if (parts.length < 2) return 0
-  return parseInt(parts[0]!, 10) * 60 + parseInt(parts[1]!, 10)
-}
-
-/** 分钟数 → "H:MM" */
-function minutesToLabel(m: number): string {
-  const h = Math.floor(m / 60)
-  const min = m % 60
-  return `${h}:${min.toString().padStart(2, '0')}`
-}
-
 const renderChart = () => {
   if (!chartRef.value) return
   if (!chartInstance) {
     chartInstance = echarts.init(chartRef.value)
   }
 
+  const startMin = timeLabelToMinutes(props.simStartTime ?? '0:00')
+  const endMin = props.simEndTime ? timeLabelToMinutes(props.simEndTime) : Infinity
+
   // 收集所有时间戳
   const allTsSet = new Set<number>()
   for (const varName of props.variables) {
-    const data = getVarData(varName)
-    data.forEach(p => allTsSet.add(tsToMinutes(p.ts)))
+    const data = getVarData(varName).filter(p => {
+      const m = timeLabelToMinutes(p.ts)
+      return m >= startMin && m < endMin
+    })
+    data.forEach(p => allTsSet.add(timeLabelToMinutes(p.ts)))
   }
   const allTs = Array.from(allTsSet).sort((a, b) => a - b)
-  const xLabels = allTs.map(m => minutesToLabel(m))
+  const xLabels = allTs.map(m => minutesToTimeLabel(m))
 
   const series: echarts.SeriesOption[] = []
   // 源和荷共用一个 stack，正数自然向上、负数自然向下，保证同时刻对齐
   let colorIdx = 0
 
   for (const varName of sourceVars.value) {
-    const data = getVarData(varName)
-    const dataMap = new Map(data.map(p => [tsToMinutes(p.ts), p.value]))
+    const data = getVarData(varName).filter(p => {
+      const m = timeLabelToMinutes(p.ts)
+      return m >= startMin && m < endMin
+    })
+    const dataMap = new Map(data.map(p => [timeLabelToMinutes(p.ts), p.value]))
     const barData = allTs.map(m => dataMap.get(m) ?? 0)
 
     series.push({
@@ -176,8 +182,11 @@ const renderChart = () => {
   }
 
   for (const varName of sinkVars.value) {
-    const data = getVarData(varName)
-    const dataMap = new Map(data.map(p => [tsToMinutes(p.ts), -Math.abs(p.value)]))
+    const data = getVarData(varName).filter(p => {
+      const m = timeLabelToMinutes(p.ts)
+      return m >= startMin && m < endMin
+    })
+    const dataMap = new Map(data.map(p => [timeLabelToMinutes(p.ts), -Math.abs(p.value)]))
     const barData = allTs.map(m => dataMap.get(m) ?? 0)
 
     series.push({
@@ -241,7 +250,7 @@ const renderChart = () => {
   }, true)
 }
 
-watch(() => JSON.stringify(props.liveData) + props.layerId + JSON.stringify(props.variables), () => renderChart())
+watch(() => JSON.stringify(props.liveData) + props.layerId + JSON.stringify(props.variables) + props.simStartTime + props.simEndTime, () => renderChart())
 
 onMounted(() => {
   renderChart()

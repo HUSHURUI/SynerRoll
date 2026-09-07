@@ -155,9 +155,44 @@ export interface CapacityOptimizerConfig {
   failurePenalty: number
 }
 
+export type CapacityPlanObjective =
+  | 'total-cost-min'
+  | 'operating-cost-min'
+  | 'initial-investment-min'
+  | 'npv-max'
+  | 'lcoe-min'
+  | 'payback-period-min'
+  | 'irr-max'
+
+export interface CapacityConstraint {
+  enabled: boolean
+  operator: 'gte' | 'lte'
+  threshold: number
+  unit: '%' | '年'
+}
+
+export interface CapacityTechnicalConstraintsConfig {
+  renewableConsumptionRate: CapacityConstraint
+  greenPowerShare: CapacityConstraint
+  purchasedPowerShare: CapacityConstraint
+  stability: CapacityConstraint
+}
+
+export interface CapacityEconomicConstraintsConfig {
+  lifecycleYears: CapacityConstraint
+  interestRatePercent: CapacityConstraint
+  taxRatePercent: CapacityConstraint
+  targetIrrPercent: CapacityConstraint
+}
+
 export interface CapacityEconomicsConfig {
   evaluator: 'operating-objective-v1'
   currency: string
+  schemaVersion: 'capacity-objective-config-v2'
+  objective: CapacityPlanObjective
+  technicalConstraints: CapacityTechnicalConstraintsConfig
+  economicConstraints: CapacityEconomicConstraintsConfig
+  extensions: Record<string, unknown>
 }
 
 export interface CreateCapacityPlanningRequest {

@@ -9,6 +9,7 @@ import {
   type DeviceOutputLiveData,
   type DeviceOutputVariable
 } from '~~/utils/deviceOutputData'
+import { timeLabelToMinutes } from '~~/utils/timeLabel'
 import {
   readDeviceOutputAnalysisState,
   saveDeviceOutputAnalysisState
@@ -44,6 +45,7 @@ const props = defineProps<{
   liveData: DeviceOutputLiveData
   liveDataUnits: Record<string, string>
   layerOptions: LayerOption[]
+  simStartTime?: string
   simEndTime?: string | null
 }>()
 
@@ -155,12 +157,15 @@ const activeVariableSummary = computed(() => {
   return labels.join('；') || '选择设备变量'
 })
 
+const minimumMinute = computed<number>(() => {
+  const raw = props.simStartTime?.trim()
+  return raw ? timeLabelToMinutes(raw) : 0
+})
+
 const maximumMinute = computed<number | undefined>(() => {
   const raw = props.simEndTime?.trim()
   if (!raw) return undefined
-  const match = /^(\d{1,3}):(\d{2})/.exec(raw)
-  if (!match) return undefined
-  const minute = Number(match[1]) * 60 + Number(match[2])
+  const minute = timeLabelToMinutes(raw)
   return minute > 0 ? minute : undefined
 })
 
@@ -516,6 +521,7 @@ function openParameters(): void {
           :trace-options="traceTimelineOptions()"
           :trace-loading="traceStepsLoading || chart.traceLoading"
           :trace-error="chart.traceError || traceStepsError"
+          :minimum-minute="minimumMinute"
           :maximum-minute="maximumMinute"
           :class="charts.length === 1 ? 'min-h-full' : ''"
           @delete="deleteChart(chart.id)"

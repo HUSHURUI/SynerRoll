@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import * as echarts from 'echarts'
+import {
+  timeLabelToMinutes,
+  minutesToTimeLabel
+} from '~~/utils/timeLabel'
 
 interface Point {
   ts: string
@@ -12,24 +16,12 @@ const props = defineProps<{
   unit: string
   /** 层ID→层名称映射，如 { "1": "日前", "2": "日内" } */
   layerNames?: Record<string, string>
+  simStartTime?: string
+  simEndTime?: string | null
 }>()
 
 const chartRef = ref<HTMLDivElement | null>(null)
 let chartInstance: echarts.ECharts | null = null
-
-/** "H:MM" → 分钟数（用于 x 轴定位） */
-function tsToMinutes(ts: string): number {
-  const parts = ts.split(':')
-  if (parts.length < 2) return 0
-  return parseInt(parts[0]!, 10) * 60 + parseInt(parts[1]!, 10)
-}
-
-/** 分钟数 → "H:MM" 显示标签 */
-function minutesToLabel(m: number): string {
-  const h = Math.floor(m / 60)
-  const min = m % 60
-  return `${h}:${min.toString().padStart(2, '0')}`
-}
 
 /** 运行总览只展示整数量级，小数及求解器产生的极小浮点残差直接截断。 */
 function truncateSeriesValue(value: number): number {
@@ -61,9 +53,14 @@ const render = () => {
   }
 
   const layerIds = Object.keys(props.layers).sort((a, b) => Number(a) - Number(b))
+  const startMin = timeLabelToMinutes(props.simStartTime ?? '0:00')
+  const endMin = props.simEndTime ? timeLabelToMinutes(props.simEndTime) : Infinity
+
   const series: echarts.SeriesOption[] = layerIds.map((lid, i) => {
     const points = props.layers[lid] ?? []
-    const data: [number, number][] = points.map(p => [tsToMinutes(p.ts), truncateSeriesValue(p.value)])
+    const data: [number, number][] = points
+      .filter(p => { const m = timeLabelToMinutes(p.ts); return m >= startMin && m < endMin })
+      .map(p => [timeLabelToMinutes(p.ts), truncateSeriesValue(p.value)] as [number, number])
     const color = layerColor(i, layerIds.length)
     return {
       id: `layer-${lid}`,
@@ -100,7 +97,7 @@ const render = () => {
       interval: 'auto',
       axisLabel: {
         fontSize: 9,
-        formatter: (v: number) => minutesToLabel(v)
+        formatter: (v: number) => minutesToTimeLabel(v)
       },
       splitLine: { show: false }
     },
@@ -124,7 +121,7 @@ const render = () => {
         const arr = Array.isArray(params) ? params as { data?: number[]; seriesName?: string; color?: string }[] : []
         if (!arr.length) return ''
         const m = arr[0]?.data?.[0] ?? 0
-        let html = `<b>${minutesToLabel(m as number)}</b>`
+        let html = `<b>${minutesToTimeLabel(m as number)}</b>`
         for (const p of arr) {
           const d = p.data
           if (!d || d.length < 2) continue
@@ -147,8 +144,8 @@ const render = () => {
   })
 }
 
-// 数据或单位变化时重绘。
-watch([() => JSON.stringify(props.layers), () => props.unit], () => render())
+// 数据、单位或仿真范围变化时重绘。
+watch([() => JSON.stringify(props.layers), () => props.unit, () => props.simStartTime, () => props.simEndTime], () => render())
 
 onMounted(() => {
   render()

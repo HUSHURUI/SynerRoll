@@ -278,6 +278,27 @@ end
     end
 end
 
+# ───── GET /api/task/{id}/economy（经济性评价）──
+@get "/api/task/{id}/economy" function (req, id)
+    try
+        task = get_task(id)
+        task === nothing && return json_error("任务不存在: $id")
+        task["status"] != "completed" && return json_error("任务未完成，无法计算经济性指标")
+
+        # 读取项目快照
+        project_path = joinpath(TASKS_DATA_ROOT, id, "project.json")
+        if !isfile(project_path)
+            return json_error("项目快照不存在: project.json")
+        end
+        project_json = JSON3.read(read(project_path, String), Dict)
+
+        result = evaluate_task_economy(id, project_json)
+        return json_success(data = result)
+    catch e
+        return json_error("计算经济性指标异常: $(sprint(showerror, e))")
+    end
+end
+
 # ───── WS /ws/task/{id}（实时双向）──
 # Oxygen 的 parse_func_params 会把 ws 当查询参数，导致 KeyError
 # 改用通配路由 + 手动匹配 req.target

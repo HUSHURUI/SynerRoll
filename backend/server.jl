@@ -37,6 +37,7 @@ begin
     include("utils/prediction_utils.jl")
     include("utils/server_utils.jl")
     include("utils/flexibility_utils.jl")
+    include("utils/economy_calculator.jl")
 
     # 容量规划存储和服务模块（依赖 utils 中的 get_store/_query/_exec）
 
@@ -146,6 +147,9 @@ begin
     include("components/hydro_power/model.jl")
 
     include("services/model_service.jl")
+
+    # 经济性评价服务
+    include("services/economy_evaluation_service.jl")
 
     # 灵活性评价服务
     include("services/flexibility_baseline_adapter.jl")

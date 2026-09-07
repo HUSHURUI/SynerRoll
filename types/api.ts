@@ -129,3 +129,38 @@ export interface TaskTraceStepsResponse {
 export interface TaskTraceDataResponse {
   rows: TaskDataRow[]
 }
+
+// ───── 经济性评价相关 ─────
+export interface CostItem {
+  componentId: string
+  componentType: string
+  componentName: string
+  costType: string
+  costLabel: string
+  layerId: string
+  value: number
+  inObjective: boolean
+  isSlack: boolean
+  isRevenue: boolean
+}
+
+export interface LayerEconomySummary {
+  layerId: string
+  layerName: string
+  totalCost: number
+  costBreakdown: Record<string, number>
+  componentBreakdown: Record<string, number>
+  objectiveComponents: string[]
+  objectiveValue: number
+  slackPenalty: number
+  hasSlack: boolean
+  revenueItems: Record<string, number>
+}
+
+export interface EconomyEvaluationResult {
+  taskId: string
+  evaluationTime: string
+  layers: LayerEconomySummary[]
+  allCostItems: CostItem[]
+  objectiveComposition: Record<string, Record<string, number>>
+}

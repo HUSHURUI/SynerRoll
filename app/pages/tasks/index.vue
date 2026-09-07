@@ -3,6 +3,7 @@ import type {
   ComputeTask,
   ComputeTaskListResponse,
   DeviceFlexibilityResult,
+  EconomyEvaluationResult,
   FlexibilityRequirementSource,
   FlexibilitySummaryResult,
   FlexibilityTaskConfig,
@@ -22,6 +23,7 @@ import {
 import PropertyText from '../../components/PropertyText.vue'
 import PropertySelect from '../../components/PropertySelect.vue'
 import DeviceOutputAnalysis from '~/components/DeviceOutputAnalysis.vue'
+import PieChart from '~/components/PieChart.vue'
 
 definePageMeta({ title: '结果分析 - SynerRoll' })
 
@@ -198,6 +200,12 @@ const flexibilityData = ref<TaskFlexibilityResponse | null>(null)
 const flexibilityLoading = ref(false)
 const flexibilityError = ref('')
 
+// ───── 经济性评价 ─────
+const economyData = ref<EconomyEvaluationResult | null>(null)
+const economyLoading = ref(false)
+const economyError = ref('')
+const economySelectedLayer = ref<string>('')
+
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
 let pollingGeneration = 0
 
@@ -352,6 +360,86 @@ const reloadFlexibility = async (taskId: string, options: { silent?: boolean } =
   }
 }
 
+const COST_TYPE_COLORS: Record<string, string> = {
+  om_cost: '#3b82f6',
+  on_off_cost: '#f59e0b',
+  adjust_cost: '#8b5cf6',
+  cut_cost: '#ef4444',
+  purchase_cost: '#06b6d4',
+  sell_revenue: '#10b981',
+  shortage_penalty: '#f97316',
+  excess_penalty: '#ec4899',
+}
+
+const COST_TYPE_LABELS: Record<string, string> = {
+  om_cost: '运维成本',
+  on_off_cost: '开停机成本',
+  adjust_cost: '调整成本',
+  cut_cost: '弃风/弃光成本',
+  purchase_cost: '购电成本',
+  sell_revenue: '售电收益',
+  shortage_penalty: '短缺惩罚',
+  excess_penalty: '过剩惩罚',
+}
+
+const economySelectedLayerSummary = computed(() => {
+  if (!economyData.value?.layers?.length) return null
+  const layerId = economySelectedLayer.value || economyData.value.layers[0]?.layerId
+  return economyData.value.layers.find(l => l.layerId === layerId) ?? economyData.value.layers[0] ?? null
+})
+
+const economyPieItems = computed(() => {
+  const summary = economySelectedLayerSummary.value
+  if (!summary) return []
+  const items: Array<{ label: string; value: number; color: string }> = []
+  for (const [costType, value] of Object.entries(summary.costBreakdown)) {
+    if (Math.abs(value) < 0.01) continue
+    items.push({
+      label: COST_TYPE_LABELS[costType] ?? costType,
+      value: Math.abs(value),
+      color: COST_TYPE_COLORS[costType] ?? '#6b7280',
+    })
+  }
+  return items
+})
+
+const economyObjectiveTotal = computed(() => {
+  const summary = economySelectedLayerSummary.value
+  if (!summary) return 0
+  return summary.objectiveValue
+})
+
+const reloadEconomy = async (taskId: string, options: { silent?: boolean } = {}) => {
+  if (!options.silent) {
+    economyLoading.value = true
+    economyError.value = ''
+  }
+  try {
+    const data = await taskApi.getEconomy(taskId)
+    if (selectedTaskId.value !== taskId) return
+    economyData.value = data
+    economyError.value = ''
+    if (!economySelectedLayer.value && data.layers?.length) {
+      economySelectedLayer.value = data.layers[0]!.layerId
+    }
+  }
+  catch (error) {
+    if (selectedTaskId.value !== taskId) return
+    if (!options.silent || !economyData.value) {
+      economyData.value = null
+      economyError.value = error instanceof Error ? error.message : String(error)
+    }
+    else {
+      console.warn('[Poll] reloadEconomy error:', error)
+    }
+  }
+  finally {
+    if (!options.silent && selectedTaskId.value === taskId) {
+      economyLoading.value = false
+    }
+  }
+}
+
 const reloadLiveData = async (taskId: string) => {
   try {
     const data = await taskApi.getData(taskId)
@@ -385,7 +473,8 @@ const startPolling = (taskId: string) => {
   let pending = false
   const reloadResults = () => Promise.all([
     reloadLiveData(taskId),
-    reloadFlexibility(taskId, { silent: true })
+    reloadFlexibility(taskId, { silent: true }),
+    reloadEconomy(taskId, { silent: true }),
   ])
   const poll = async () => {
     if (pending) return
@@ -498,12 +587,18 @@ const selectTask = async (taskId: string) => {
 
   subscribeTask(taskId)
   await reloadFlexibility(taskId)
+  if (selectedTask.value?.status === 'completed') {
+    void reloadEconomy(taskId)
+  }
   startPolling(taskId)
 }
 
 watch(activeSection, (section) => {
   if ((section === 'flexibility' || section === 'device-flexibility') && selectedTaskId.value) {
     void reloadFlexibility(selectedTaskId.value)
+  }
+  if (section === 'economy' && selectedTaskId.value && selectedTask.value?.status === 'completed') {
+    void reloadEconomy(selectedTaskId.value)
   }
 })
 
@@ -1361,6 +1456,167 @@ const createTask = async () => {
               :layer-options="layerOptions"
               :sim-end-time="selectedTask.sim_end_time"
             />
+          </div>
+
+          <!-- 经济性分析 -->
+          <div v-else-if="activeSection === 'economy'" class="flex-1 min-h-0 overflow-auto p-4 space-y-4">
+            <!-- 加载中 -->
+            <div v-if="economyLoading" class="flex items-center justify-center h-64 text-app-muted">
+              <div class="text-sm">正在计算经济性指标...</div>
+            </div>
+
+            <!-- 错误 -->
+            <div v-else-if="economyError" class="flex items-center justify-center h-64">
+              <div class="text-sm text-red-500">{{ economyError }}</div>
+            </div>
+
+            <!-- 无数据 -->
+            <div v-else-if="!economyData || !economyData.layers?.length" class="flex items-center justify-center h-64 text-app-muted">
+              <div class="text-sm">暂无经济性数据（任务需完成后才能计算）</div>
+            </div>
+
+            <!-- 经济性数据展示 -->
+            <template v-else>
+              <!-- 时层选择 -->
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-xs text-app-muted">选择时层：</span>
+                <select
+                  v-model="economySelectedLayer"
+                  class="field-input text-xs py-1 px-2 rounded border border-app-border bg-white"
+                >
+                  <option
+                    v-for="layer in economyData.layers"
+                    :key="layer.layerId"
+                    :value="layer.layerId"
+                  >
+                    {{ layer.layerName }}
+                  </option>
+                </select>
+              </div>
+
+              <!-- 目标函数组成饼图 + 汇总 -->
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <!-- 饼图 -->
+                <div v-if="economyPieItems.length > 0">
+                  <PieChart
+                    title="目标函数组成"
+                    :items="economyPieItems"
+                  />
+                  <div class="mt-2 text-xs text-app-muted px-4">
+                    目标函数值（不含松弛惩罚）：
+                    <span class="font-semibold text-app-text">¥{{ economyObjectiveTotal.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
+                  </div>
+                </div>
+
+                <!-- 松弛变量警告 -->
+                <div v-if="economySelectedLayerSummary?.hasSlack" class="rounded-xl border border-orange-300 bg-orange-50 p-4">
+                  <div class="flex items-center gap-2 text-orange-700 font-semibold text-sm mb-2">
+                    ⚠️ 存在能量不平衡
+                  </div>
+                  <div class="text-xs text-orange-600 space-y-1">
+                    <div v-if="(economySelectedLayerSummary.slackPenalty ?? 0) > 0">
+                      松弛惩罚：¥{{ (economySelectedLayerSummary.slackPenalty ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                    </div>
+                    <div>说明：松弛变量大于0表示系统能量供应不平衡</div>
+                  </div>
+                </div>
+
+                <!-- 层汇总卡片 -->
+                <div class="rounded-xl border border-app-border bg-white p-4 space-y-3">
+                  <h3 class="text-sm font-semibold text-app-text">层汇总</h3>
+                  <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span class="text-app-muted">总成本：</span>
+                      <span class="font-medium">¥{{ (economySelectedLayerSummary?.totalCost ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
+                    </div>
+                    <div>
+                      <span class="text-app-muted">目标函数值：</span>
+                      <span class="font-medium">¥{{ (economySelectedLayerSummary?.objectiveValue ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
+                    </div>
+                  </div>
+
+                  <!-- 收益项 -->
+                  <div v-if="economySelectedLayerSummary?.revenueItems && Object.keys(economySelectedLayerSummary.revenueItems).length > 0">
+                    <h4 class="text-xs text-app-muted mb-1">收益项</h4>
+                    <div v-for="(value, key) in economySelectedLayerSummary.revenueItems" :key="key" class="text-xs">
+                      <span class="text-app-muted">{{ COST_TYPE_LABELS[key as string] ?? key }}：</span>
+                      <span class="text-green-600 font-medium">¥{{ value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 各时层经济性对比表格 -->
+              <div class="rounded-xl border border-app-border bg-white overflow-hidden">
+                <h3 class="text-sm font-semibold text-app-text px-4 pt-3 pb-2">各时层经济性对比</h3>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-xs">
+                    <thead>
+                      <tr class="border-t border-app-border bg-gray-50">
+                        <th class="px-3 py-2 text-left font-medium text-app-muted">时层</th>
+                        <th class="px-3 py-2 text-right font-medium text-app-muted">目标函数值</th>
+                        <th class="px-3 py-2 text-right font-medium text-app-muted">运维成本</th>
+                        <th class="px-3 py-2 text-right font-medium text-app-muted">开停机</th>
+                        <th class="px-3 py-2 text-right font-medium text-app-muted">调整</th>
+                        <th class="px-3 py-2 text-right font-medium text-app-muted">购电</th>
+                        <th class="px-3 py-2 text-right font-medium text-app-muted">售电</th>
+                        <th class="px-3 py-2 text-center font-medium text-app-muted">状态</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="layer in economyData.layers"
+                        :key="layer.layerId"
+                        class="border-t border-app-border hover:bg-blue-50 cursor-pointer"
+                        :class="{ 'bg-blue-50': layer.layerId === economySelectedLayer }"
+                        @click="economySelectedLayer = layer.layerId"
+                      >
+                        <td class="px-3 py-2 font-medium">{{ layer.layerName }}</td>
+                        <td class="px-3 py-2 text-right">¥{{ layer.objectiveValue.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</td>
+                        <td class="px-3 py-2 text-right">¥{{ (layer.costBreakdown['om_cost'] ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</td>
+                        <td class="px-3 py-2 text-right">¥{{ (layer.costBreakdown['on_off_cost'] ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</td>
+                        <td class="px-3 py-2 text-right">¥{{ (layer.costBreakdown['adjust_cost'] ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</td>
+                        <td class="px-3 py-2 text-right">¥{{ (layer.costBreakdown['purchase_cost'] ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</td>
+                        <td class="px-3 py-2 text-right text-green-600">¥{{ (layer.costBreakdown['sell_revenue'] ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</td>
+                        <td class="px-3 py-2 text-center">
+                          <span v-if="layer.hasSlack" class="text-orange-500" title="存在松弛变量">⚠️</span>
+                          <span v-else class="text-green-500" title="能量平衡">✓</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- 设备经济性明细 -->
+              <div class="rounded-xl border border-app-border bg-white p-4">
+                <h3 class="text-sm font-semibold text-app-text mb-3">设备经济性明细</h3>
+                <div v-if="economySelectedLayerSummary" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  <div
+                    v-for="(value, compKey) in economySelectedLayerSummary.componentBreakdown"
+                    :key="compKey"
+                    class="rounded-lg border border-app-border p-3 bg-gray-50"
+                  >
+                    <div class="text-xs font-semibold text-app-text mb-2">{{ compKey }}</div>
+                    <div class="text-sm font-medium">¥{{ value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</div>
+                    <!-- 该组件的各成本项 -->
+                    <div class="mt-2 space-y-1">
+                      <div
+                        v-for="item in economyData.allCostItems.filter(i => i.layerId === economySelectedLayerSummary!.layerId && `${i.componentType}_${i.componentId}` === compKey)"
+                        :key="item.costType"
+                        class="text-xs flex justify-between"
+                        :class="{ 'text-gray-400': !item.inObjective, 'text-app-muted': item.inObjective }"
+                      >
+                        <span>{{ item.costLabel }}{{ item.inObjective ? '' : ' [未选中]' }}</span>
+                        <span :class="{ 'text-green-600': item.isRevenue }">
+                          ¥{{ item.value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
           </div>
 
           <!-- 其他栏目占位 -->

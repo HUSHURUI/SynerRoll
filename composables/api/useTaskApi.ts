@@ -2,6 +2,7 @@ import type {
   ComputeTask,
   ComputeTaskListResponse,
   CreateTaskRequest,
+  EconomyEvaluationResult,
   TaskDataResponse,
   TaskFlexibilityResponse,
   TaskTraceDataResponse,
@@ -92,6 +93,9 @@ export const useTaskApi = () => {
       apiClient.get<TaskTraceStepsResponse>(`/task/${taskId}/trace`),
 
     getTraceData: (taskId: string, step: number) =>
-      apiClient.get<TaskTraceDataResponse>(`/task/${taskId}/trace/${step}`)
+      apiClient.get<TaskTraceDataResponse>(`/task/${taskId}/trace/${step}`),
+
+    getEconomy: (taskId: string) =>
+      apiClient.get<EconomyEvaluationResult>(`/task/${taskId}/economy`)
   }
 }

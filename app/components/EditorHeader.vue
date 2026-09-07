@@ -9,7 +9,7 @@ withDefaults(
   }>(),
   {
     logoSrc: '',
-    logoText: 'SynerRoll',
+    logoText: '发电灵活性量化评估软件',
     userName: 'A4Admin'
   }
 )

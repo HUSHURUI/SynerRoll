@@ -113,14 +113,13 @@ const sections = computed<ParameterSection[]>(() => {
             </option>
           </select>
         </label>
-        <span class="inline-flex h-9 items-center rounded-full bg-primary-soft px-3 text-xs font-medium text-primary">只读</span>
       </div>
 
-      <section v-if="node && device" class="rounded-[10px] border border-app-border bg-app-panel-soft/60 p-3">
+      <section v-if="node && device" class="border border-app-border bg-app-panel-soft/60 p-3">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 class="text-sm font-semibold text-app-text">{{ device.name }}</h3>
-            <p class="mt-1 text-xs text-app-muted">{{ device.componentLabel }} · {{ device.componentType }}</p>
+            <p class="mt-1 text-xs text-app-muted">{{ device.componentLabel }} - {{ device.componentType }}</p>
           </div>
           <div class="text-right text-[11px] leading-5 text-app-muted">
             <div>设备 ID：{{ device.id }}</div>
@@ -130,7 +129,7 @@ const sections = computed<ParameterSection[]>(() => {
       </section>
 
       <div v-if="sections.length" class="space-y-3">
-        <section v-for="section in sections" :key="section.title" class="rounded-[10px] border border-app-border bg-white">
+        <section v-for="section in sections" :key="section.title" class="border border-app-border bg-white">
           <h3 class="border-b border-app-border px-4 py-2.5 text-sm font-semibold text-app-text">{{ section.title }}</h3>
           <dl class="grid gap-px bg-app-border sm:grid-cols-2">
             <div
@@ -147,7 +146,7 @@ const sections = computed<ParameterSection[]>(() => {
         </section>
       </div>
 
-      <div v-else class="flex h-28 items-center justify-center rounded-[10px] border border-dashed border-app-border text-sm text-app-muted">
+      <div v-else class="flex h-28 items-center justify-center border border-dashed border-app-border text-sm text-app-muted">
         当前设备没有可显示的配置参数
       </div>
     </div>

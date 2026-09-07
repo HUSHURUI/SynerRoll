@@ -211,8 +211,7 @@ const importProject = async (event: Event) => {
     <div class="border-b border-app-border bg-white">
       <div class="mx-auto flex max-w-[1680px] items-center justify-between px-6 py-4">
         <div>
-          <h1 class="text-2xl font-bold text-app-text">SynerRoll 项目管理</h1>
-          <p class="mt-1 text-sm text-app-muted">综合能源系统多尺度滚动仿真平台前端工作台</p>
+          <h1 class="text-2xl font-bold text-app-text">项目管理</h1>
         </div>
         <div class="flex items-center gap-2">
           <AppButton label="新建项目" icon="package" tone="neutral" data-testid="open-project-template-dialog" @click="openCreateDialog" />
@@ -225,7 +224,7 @@ const importProject = async (event: Event) => {
     <div class="mx-auto grid max-w-[1680px] grid-cols-[240px_minmax(0,1fr)_340px] gap-6 px-6 py-6">
       <aside class="panel-card p-4">
         <h2 class="mb-4 text-sm font-semibold text-app-text">项目分类</h2>
-        <div class="space-y-2">
+        <div class="space-y-4">
           <button
             v-for="filter in projectCategoryFilters"
             :key="filter.key"
@@ -235,7 +234,6 @@ const importProject = async (event: Event) => {
             @click="activeFilter = filter.key"
           >
             <p class="text-sm font-medium">{{ filter.label }}</p>
-            <p class="mt-1 text-xs text-app-muted">{{ filter.description }}</p>
           </button>
         </div>
       </aside>
@@ -243,13 +241,10 @@ const importProject = async (event: Event) => {
       <section class="space-y-4">
         <div class="panel-card flex items-center justify-between p-4">
           <div class="relative w-full max-w-md">
-            <span class="pointer-events-none absolute inset-y-0 left-3 inline-flex items-center text-app-muted">
-              <AppIcon name="search" :size="14" />
-            </span>
             <input
               v-model="searchKeyword"
-              class="field-input pl-9"
-              placeholder="搜索项目、标签或描述"
+              class="field-input pl-4"
+              placeholder="搜索项目名称或描述"
             >
           </div>
           <div class="flex items-center gap-2">
@@ -298,7 +293,6 @@ const importProject = async (event: Event) => {
       <aside class="panel-card p-4">
         <template v-if="selectedProject">
           <div class="mb-4">
-            <p class="text-xs uppercase tracking-[0.18em] text-app-muted">Detail</p>
             <h2 class="mt-2 text-xl font-semibold text-app-text">{{ selectedProject.name }}</h2>
             <p class="mt-2 text-sm leading-6 text-app-muted">
               {{ selectedProject.description || '当前项目暂无详细描述。' }}
@@ -315,7 +309,7 @@ const importProject = async (event: Event) => {
               <p class="mt-2 text-sm font-semibold text-app-text">{{ selectedProject.owner }}</p>
             </div>
             <div class="rounded-lg border border-app-border bg-app-panel-soft p-3">
-              <p class="text-xs text-app-muted">节点数量</p>
+              <p class="text-xs text-app-muted">设备数量</p>
               <p class="mt-2 text-sm font-semibold text-app-text">{{ selectedProject.nodeCount }}</p>
             </div>
             <div class="rounded-lg border border-app-border bg-app-panel-soft p-3">
@@ -338,19 +332,15 @@ const importProject = async (event: Event) => {
             <div class="rounded-lg border border-app-border bg-app-panel-soft p-3">
               <p class="text-xs font-semibold text-app-text">起始模板</p>
               <p class="mt-1 text-sm text-app-text">{{ selectedProjectTemplate?.label || '历史或自定义项目' }}</p>
-              <p class="mt-1 text-xs leading-5 text-app-muted">模板仅记录项目起点，仿真始终读取当前画布中的实际组件和参数。</p>
             </div>
             <div class="rounded-lg border border-app-border bg-app-panel-soft p-3">
               <p class="text-xs font-semibold text-app-text">当前活动画布</p>
-              <p class="mt-1 text-xs leading-5 text-app-muted">在编辑器中切换活动画布即可更改仿真输入。</p>
               <div class="mt-2 text-sm text-app-text">
                 {{ selectedProjectDetail?.workspace.activeCanvasId || '未设置' }}
               </div>
             </div>
 
-            <AppButton label="进入建模编辑器" icon="shape" tone="primary" class="w-full justify-center" @click="navigateTo(`/editor/${selectedProject.id}`)" />
-            <AppButton label="进入算法配置" icon="play" tone="neutral" class="w-full justify-center" @click="navigateTo(`/simulation/${selectedProject.id}`)" />
-            <AppButton label="查看结果分析" icon="chart" tone="neutral" class="w-full justify-center" @click="navigateTo(`/result/${selectedProject.id}`)" />
+            <AppButton label="开始系统建模" icon="play" tone="primary" class="w-full justify-center" @click="navigateTo(`/editor/${selectedProject.id}`)" />
           </div>
         </template>
 

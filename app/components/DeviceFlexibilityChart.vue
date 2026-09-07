@@ -143,18 +143,17 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="rounded-[12px] border border-app-border bg-white p-3">
+  <section class="border border-app-border bg-white p-3">
     <div class="flex flex-wrap items-start justify-between gap-3 px-1">
       <div>
         <div class="flex items-center gap-2">
-          <h3 class="text-sm font-semibold text-app-text">{{ title }}</h3>
-          <span class="rounded-full bg-app-panel-soft px-2 py-0.5 text-[10px] text-app-muted">{{ deviceType }}</span>
+          <h3 class="">{{ title }}</h3>
           <span v-if="boundary" class="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] text-primary">并网边界</span>
         </div>
       </div>
-      <div class="flex gap-4 text-right text-[11px] text-app-muted">
-        <div>峰值上调 <span class="ml-1 font-semibold text-primary">{{ peak('up').toFixed(2) }} kW</span></div>
-        <div>峰值下调 <span class="ml-1 font-semibold text-green-700">{{ peak('down').toFixed(2) }} kW</span></div>
+      <div class="flex gap-4 text-right text-xs text-app-muted">
+        <div>峰值上调 <span class="ml-1 text-xs text-primary font-semibold">{{ peak('up').toFixed(2) }} kW</span></div>
+        <div>峰值下调 <span class="ml-1 text-xs text-green-700 font-semibold">{{ peak('down').toFixed(2) }} kW</span></div>
       </div>
     </div>
     <div ref="chartRef" class="mt-2 h-44 w-full" />

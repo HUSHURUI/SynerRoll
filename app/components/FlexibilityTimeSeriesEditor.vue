@@ -272,7 +272,7 @@ const previewRows = computed(() =>
 </script>
 
 <template>
-  <div class="space-y-3 rounded-[10px] border border-app-border bg-white p-3">
+  <div class="space-y-2 border border-app-border bg-white p-3">
     <div v-if="mode === 'manual'" class="space-y-2">
       <div class="flex items-center justify-between gap-3">
         <div class="text-xs font-medium text-app-text">{{ label }}分时表格</div>
@@ -297,8 +297,9 @@ const previewRows = computed(() =>
     <div v-else-if="mode === 'file'" class="space-y-3">
       <input ref="fileInput" type="file" accept=".csv,.xlsx,.xls,.json" class="hidden" @change="handleFile">
       <div class="flex flex-wrap items-center gap-2">
-        <AppButton label="选择 CSV / Excel / JSON" tone="neutral" size="sm" @click="openFilePicker" />
-        <span class="text-xs text-app-muted">{{ fileName || '尚未选择文件' }}</span>
+        <AppButton label="下载数据模板" tone="neutral" size="sm" />
+        <AppButton label="导入文件" tone="neutral" size="sm" @click="openFilePicker" />
+        <span class="text-xs text-app-muted">{{ fileName || '' }}</span>
       </div>
       <div v-if="fileHeaders.length" class="grid gap-2 sm:grid-cols-2">
         <label class="space-y-1 text-xs text-app-muted">
@@ -314,7 +315,6 @@ const previewRows = computed(() =>
           </select>
         </label>
       </div>
-      <p class="text-[11px] leading-5 text-app-muted">首行作为表头；时间标签使用 H:MM。导入后只把规范化的“时间戳—数值”数据提交给后端。</p>
     </div>
 
     <div v-else class="space-y-2">
@@ -325,15 +325,14 @@ const previewRows = computed(() =>
           <option v-for="option in boundaryOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
         </select>
       </label>
-      <p class="text-[11px] leading-5 text-app-muted">优先读取 boundary.db 中所选时层的数据；数据库暂不可用时使用项目中保存的同层缓存。</p>
     </div>
 
-    <div v-if="validationMessage" class="rounded-lg bg-red-50 px-3 py-2 text-xs text-app-danger">{{ validationMessage }}</div>
+    <div v-if="validationMessage" class="text-xs text-app-danger">{{ validationMessage }}</div>
     <div v-else class="rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700">校验通过，共 {{ previewRows.length }} 个时点。</div>
 
     <div v-if="previewRows.length" class="overflow-hidden rounded-lg border border-app-border">
       <div class="flex items-center justify-between bg-app-panel-soft px-3 py-2 text-[11px] text-app-muted">
-        <span>规范化数据预览</span><span>显示前 {{ Math.min(8, previewRows.length) }} / {{ previewRows.length }} 条</span>
+        <span>预览</span><span>显示前 {{ Math.min(8, previewRows.length) }} / {{ previewRows.length }} 条</span>
       </div>
       <table class="w-full text-xs">
         <tbody>

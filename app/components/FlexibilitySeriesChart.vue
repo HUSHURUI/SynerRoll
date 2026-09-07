@@ -241,10 +241,20 @@ const render = () => {
   })
 }
 
-// 数据变化时，把范围收拢到有效区间内（immediate 确保首次加载也同步）
-watch(sliderMax, (max) => {
-  if (rangeEndMinutes.value > max) rangeEndMinutes.value = max
-  if (rangeStartMinutes.value > max) rangeStartMinutes.value = 0
+// 数据变化时，让滑块始终锚定在滑杆最右侧，并展示从 0 到最新时刻的完整窗口，
+// 使 ECharts 横坐标随数据增长而变长、图形逐渐收缩。
+watch(sliderMax, (max, prevMax) => {
+  const previous = prevMax ?? 0
+  if (max > previous) {
+    rangeStartMinutes.value = 0
+    rangeEndMinutes.value = max
+  }
+  else if (rangeEndMinutes.value > max) {
+    rangeEndMinutes.value = max
+  }
+  if (rangeStartMinutes.value >= max) {
+    rangeStartMinutes.value = 0
+  }
 }, { immediate: true })
 
 watch(

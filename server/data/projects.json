@@ -3,7 +3,7 @@
     "id": "project-80844aff-c647-4167-9d70-649f76c2f509",
     "name": "风火储运行优化",
     "createTime": "2026-07-16T10:03:14.662Z",
-    "updateTime": "2026-09-07T11:26:29.191Z",
+    "updateTime": "2026-09-07T15:09:22.965Z",
     "description": "新建项目",
     "owner": "A4Admin",
     "favorite": true,
@@ -1248,9 +1248,9 @@
             }
           ],
           "viewport": {
-            "x": 53.39301556847113,
-            "y": -20.157021611039113,
-            "zoom": 0.8705505632961241
+            "x": -47.69270901652635,
+            "y": 233.7757537285593,
+            "zoom": 0.8705505632961249
           },
           "pageConfig": {
             "width": 1500,
@@ -1266,7 +1266,7 @@
             "showPorts": true,
             "labelLanguage": "chinese"
           },
-          "updatedAt": "2026-09-07T11:26:28.547Z"
+          "updatedAt": "2026-09-07T15:05:18.062Z"
         }
       ],
       "clipboard": null
@@ -4076,10 +4076,10 @@
     "id": "project-4bc99526-f36f-40f2-a1df-0df5205171d0",
     "name": "灵活性",
     "createTime": "2026-08-30T20:01:28.740Z",
-    "updateTime": "2026-09-07T11:58:22.978Z",
+    "updateTime": "2026-09-07T14:58:19.068Z",
     "description": "新建项目",
     "owner": "A4Admin",
-    "favorite": false,
+    "favorite": true,
     "tags": [
       "综合能源"
     ],
@@ -11889,10 +11889,10 @@
     "id": "project-scenario-regional-renewable-system",
     "name": "中型新能源区域系统",
     "createTime": "2026-09-02T04:18:08.751Z",
-    "updateTime": "2026-09-03T11:03:13.493Z",
+    "updateTime": "2026-09-07T14:58:17.704Z",
     "description": "预置本地风光、气电、储能和负荷，并给出受限的电网交换参数。",
     "owner": "A4Admin",
-    "favorite": false,
+    "favorite": true,
     "tags": [
       "典型场景",
       "综合能源",

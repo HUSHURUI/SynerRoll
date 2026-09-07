@@ -55,6 +55,7 @@ const onEndInput = (event: Event) => {
       <div class="absolute top-0 h-1 rounded-full bg-primary" :style="fillStyle" />
     </div>
     <input
+      :key="`start-${min}-${max}`"
       :value="start"
       type="range"
       :min="min"
@@ -65,6 +66,7 @@ const onEndInput = (event: Event) => {
       @input="onStartInput"
     >
     <input
+      :key="`end-${min}-${max}`"
       :value="end"
       type="range"
       :min="min"

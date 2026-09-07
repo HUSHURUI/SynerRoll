@@ -18,9 +18,9 @@ export const FLEXIBILITY_OPERATION_OPTIONS: FlexibilityOption<FlexibilityOperati
 ]
 
 export const FLEXIBILITY_REQUIREMENT_OPTIONS: FlexibilityOption<FlexibilityRequirementSource>[] = [
-  { label: '净负荷变化', value: 'net_load_change', description: '根据相邻时段净负荷变化自动计算上下调需求。' },
-  { label: '计划/AGC 目标', value: 'agc_or_schedule', description: '根据目标并网功率与基准并网功率的偏差计算需求。' },
-  { label: '用户自定义', value: 'user_defined', description: '直接输入上调和下调需求。' }
+  { label: '净负荷变化', value: 'net_load_change', description: '根据相邻时段净负荷变化自动计算上下调需求' },
+  { label: 'AGC目标计划', value: 'agc_or_schedule', description: '根据目标并网功率与基准并网功率的偏差计算需求' },
+  { label: '用户自定义', value: 'user_defined', description: '直接输入上调和下调灵活性需求' }
 ]
 
 const toLabelMap = <T extends string>(options: FlexibilityOption<T>[]): Record<T, string> =>

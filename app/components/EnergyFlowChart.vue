@@ -280,7 +280,7 @@ onBeforeUnmount(() => {
               :title="`${item.name}: ${item.value.toFixed(1)}`"
             />
           </div>
-          <div class="flex-1 flex flex-col-reverse justify-between text-[9px] leading-tight py-0.5 overflow-hidden">
+          <div class="flex-1 flex flex-col-reverse justify-between text-[10px] leading-tight py-0.5 overflow-hidden">
             <div
               v-for="(item, i) in sourceContribution"
               :key="i"
@@ -311,7 +311,7 @@ onBeforeUnmount(() => {
               :title="`${item.name}: ${item.value.toFixed(1)}`"
             />
           </div>
-          <div class="flex-1 flex flex-col-reverse justify-between text-[9px] leading-tight py-0.5 overflow-hidden">
+          <div class="flex-1 flex flex-col-reverse justify-between text-[10px] leading-tight py-0.5 overflow-hidden">
             <div
               v-for="(item, i) in sinkContribution"
               :key="i"

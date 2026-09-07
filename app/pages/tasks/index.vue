@@ -62,14 +62,14 @@ interface AnalysisSection {
 }
 
 const sections: AnalysisSection[] = [
-  { key: 'overview', label: '运行总览', icon: '📊' },
-  { key: 'energy-flow', label: '能流平衡分析', icon: '⚡' },
-  { key: 'device-output', label: '设备出力分析', icon: '🔌' },
-  { key: 'economy', label: '经济性分析', icon: '💰' },
-  { key: 'carbon', label: '碳排放分析', icon: '🌱' },
-  { key: 'stability', label: '稳定性分析', icon: '📈' },
-  { key: 'flexibility', label: '系统灵活性量化评估', icon: '↕️' },
-  { key: 'device-flexibility', label: '设备灵活性量化评估', icon: '⚙️' },
+  { key: 'overview', label: '运行总览', icon: '' },
+  { key: 'energy-flow', label: '能流平衡分析', icon: '' },
+  { key: 'device-output', label: '设备出力分析', icon: '' },
+  { key: 'economy', label: '经济性分析', icon: '' },
+  { key: 'carbon', label: '碳排放分析', icon: '' },
+  { key: 'stability', label: '稳定性分析', icon: '' },
+  { key: 'flexibility', label: '系统灵活性量化评估', icon: '' },
+  { key: 'device-flexibility', label: '设备灵活性量化评估', icon: '' },
 ]
 
 const activeSection = ref<string>('overview')
@@ -1094,7 +1094,7 @@ const buildFlexibilityTaskConfig = (): FlexibilityTaskConfig => {
     throw new Error('当前画布存在多个电网接口，请选择本次评价使用的并网点')
   }
   if (islanded && newTask.requirementSource === 'agc_or_schedule') {
-    throw new Error('离网系统没有并网点，不能使用计划/AGC目标作为需求来源')
+    throw new Error('离网系统没有并网点，不能使用AGC目标计划作为需求来源')
   }
 
   const config: FlexibilityTaskConfig = {
@@ -1192,7 +1192,7 @@ const createTask = async () => {
       <div class="ml-auto flex items-center gap-2">
         <AppButton
           label="任务列表"
-          tone="ghost"
+          tone="neutral"
           size="sm"
           @click="showTaskListDialog = true"
         />
@@ -1346,7 +1346,12 @@ const createTask = async () => {
                     </div>
                     <div class="rounded-lg bg-app-panel-soft px-3 py-3">
                       <div class="text-sm text-app-muted">达标时段比例</div>
-                      <div class="mt-1 text-base font-semibold text-orange-700">{{ formatFlexPercent(directionSummary(direction)?.adequate_period_ratio) }}</div>
+                      <div
+                        class="mt-1 text-base font-semibold"
+                        :class="Number(directionSummary(direction)?.adequate_period_ratio) > 0.9 ? 'text-green-600' : 'text-orange-700'"
+                      >
+                        {{ formatFlexPercent(directionSummary(direction)?.adequate_period_ratio) }}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1392,7 +1397,7 @@ const createTask = async () => {
               </p>
             </div>
 
-            <div v-else-if="deviceFlexibilityGroups.length" class="space-y-3">
+            <div v-else-if="deviceFlexibilityGroups.length" class="space-y-2">
               <DeviceFlexibilityChart
                 v-for="device in deviceFlexibilityGroups"
                 :key="device.key"
@@ -1783,20 +1788,25 @@ const createTask = async () => {
           <div class="mt-4 space-y-3 border-t border-primary/15 pt-4">
             <div class="property-row-double">
               <div class="flex items-center gap-2 flex-1">
-                <label class="property-label">并网点</label>
-                <PropertySelect
-                  v-model="newTask.poiId"
-                  :options="isIslandedFlexibility ? [{ value: '', label: '离网系统（无 GRID / POI）' }] : creationGridOptions.map(o => ({ value: o.value, label: o.label }))"
-                  :disabled="isIslandedFlexibility"
-                />
-              </div>
-              <div class="flex items-center gap-2 flex-1">
-                <label class="property-label">灵活性来源</label>
+                <label class="property-label">需求来源</label>
                 <PropertySelect
                   v-model="newTask.requirementSource"
                   :options="availableRequirementOptions.map(o => ({ value: o.value, label: o.label }))"
                 />
               </div>
+              <div class="flex items-center gap-2 flex-1">
+                <label class="property-label">并网点</label>
+                <PropertySelect
+                  v-model="newTask.poiId"
+                  :options="isIslandedFlexibility ? [{ value: '', label: '无并网点' }] : creationGridOptions.map(o => ({ value: o.value, label: o.label }))"
+                  :disabled="isIslandedFlexibility"
+                />
+              </div>
+            </div>
+            
+            <div class="bg-white text-xs text-app-muted px-3">
+              {{ availableRequirementOptions.find(option => option.value === newTask.requirementSource)?.label }}：
+              {{ availableRequirementOptions.find(option => option.value === newTask.requirementSource)?.description }}
             </div>
 
             <div
@@ -1834,19 +1844,11 @@ const createTask = async () => {
             <div
               v-else
               data-testid="islanded-boundary-summary"
-              class="rounded-[10px] border border-emerald-200 bg-emerald-50 p-3"
+              class="bg-white text-xs text-app-muted px-3"
             >
-              <div class="text-xs font-semibold text-emerald-800">离网本地平衡口径</div>
-              <div class="mt-1 text-[11px] leading-5 text-emerald-700">
-                当前画布没有并网，系统外部交换功率固定为 0。系统供给由内部可调设备灵活性合计形成，不再经过 POI 剩余空间截断。
-              </div>
-              <div class="mt-2 text-[11px] text-emerald-700">离网模式支持“净负荷变化”和“用户直接给定”；计划/AGC目标因不存在 POI 而不可用。</div>
+              <div>离网模式不支持设置AGC目标计划</div>
             </div>
 
-            <div class="bg-white px-2 text-xs leading-5 text-app-muted">
-              {{ availableRequirementOptions.find(option => option.value === newTask.requirementSource)?.label }}：
-              {{ availableRequirementOptions.find(option => option.value === newTask.requirementSource)?.description }}
-            </div>
 
             <template v-if="newTask.requirementSource !== 'net_load_change'">
               <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
@@ -1854,10 +1856,6 @@ const createTask = async () => {
                 <label class="inline-flex items-center gap-1.5">
                   <input v-model="newTask.flexibilityValueMode" type="radio" value="constant" class="accent-primary">
                   全时域常数
-                </label>
-                <label class="inline-flex items-center gap-1.5">
-                  <input v-model="newTask.flexibilityValueMode" type="radio" value="manual" class="accent-primary">
-                  表格编辑
                 </label>
                 <label class="inline-flex items-center gap-1.5">
                   <input v-model="newTask.flexibilityValueMode" type="radio" value="file" class="accent-primary">
@@ -1871,7 +1869,7 @@ const createTask = async () => {
 
               <div v-if="newTask.requirementSource === 'agc_or_schedule'">
                 <label class="space-y-1 text-xs text-app-muted">
-                  <span>目标并网功率（kW，正值表示上送、负值表示购入）</span>
+                  <span>目标并网功率/kW（正值表示上送）</span>
                   <input v-if="newTask.flexibilityValueMode === 'constant'" v-model.number="newTask.targetPoiPowerKw" type="number" step="100" class="field-input h-8 text-xs">
                 </label>
                 <FlexibilityTimeSeriesEditor

@@ -52,7 +52,7 @@ const handleCancel = () => {
       <div class="flex items-center justify-between">
         <div>
           <div class="text-sm font-medium text-app-text">启用松弛变量</div>
-          <div class="mt-0.5 text-xs text-app-muted">能量平衡约束加入 SHORTAGE / EXCESS 松弛项，保证模型始终有解</div>
+          <div class="mt-0.5 text-xs text-app-muted">能量平衡约束加入松弛项，保证模型始终有解</div>
         </div>
         <PropertySwitch v-model="localConfig.slackEnabled" />
       </div>

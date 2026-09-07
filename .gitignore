@@ -18,10 +18,7 @@ dist/
 # ========================
 # Julia 后端数据（运行时产生，不应入库）
 # ========================
-backend/data/tasks/
-backend/data/tasks.db
-backend/data/capacity-planning/
-backend/data/capacity-planning.db
+backend/data/
 backend/test/
 
 # ========================
@@ -70,6 +67,7 @@ pnpm-debug.log*
 backup_*/
 *.bak
 *.tmp
+boundary_data.csv
 
 # ========================
 # 压缩包（不应放入 Git，体积太大）

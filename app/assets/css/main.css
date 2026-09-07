@@ -1,0 +1,149 @@
+@import "@vue-flow/core/dist/style.css";
+@import "@vue-flow/core/dist/theme-default.css";
+@import "@vue-flow/controls/dist/style.css";
+@import "@vue-flow/minimap/dist/style.css";
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0a4da2;
+  --color-primary-active: #083b7c;
+  --color-primary-soft: #e8f0fb;
+  --color-app-surface: #f5f7fa;
+  --color-app-panel: #ffffff;
+  --color-app-panel-soft: #f5f7fa;
+  --color-app-border: #dde1e6;
+  --color-app-muted: #86909c;
+  --color-app-text: #1d2129;
+  --color-app-success: #00b42a;
+  --color-app-warning: #ff7d00;
+  --color-app-danger: #f53f3f;
+}
+
+@layer base {
+  html,
+  body,
+  #__nuxt {
+    min-height: 100%;
+  }
+
+  body {
+    font-family: Microsoft YaHei, PingFang SC, Hiragino Sans GB, Noto Sans CJK SC, sans-serif;
+    background: #f5f7fa;
+    color: #1d2129;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    outline: none;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #c8ced8 transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    background-color: #c8ced8;
+  }
+
+  *::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+}
+
+@layer components {
+  .panel-card {
+    @apply rounded-[12px] border border-app-border bg-app-panel shadow-sm;
+  }
+
+  .editor-card {
+    @apply rounded-[6px] bg-white shadow-sm;
+  }
+
+  .panel-title {
+    @apply text-sm font-semibold text-app-text;
+  }
+
+  .field-label {
+    @apply mb-1.5 block text-xs font-medium text-app-muted;
+  }
+
+  .field-input {
+    @apply h-9 w-full rounded-md border border-app-border bg-white px-3 text-sm text-app-text transition placeholder:text-app-muted/90 focus:border-primary;
+  }
+
+  .field-select {
+    @apply h-9 w-full rounded-md border border-app-border bg-white px-3 text-sm text-app-text transition focus:border-primary;
+  }
+
+  .field-input-sm {
+    @apply h-8 rounded-md border border-app-border bg-white px-2 text-xs text-app-text transition focus:border-primary;
+  }
+
+  .field-checkbox {
+    @apply h-4 w-4 rounded border-app-border text-primary focus:ring-primary/20;
+  }
+
+  .editor-tab {
+    @apply relative inline-flex items-center justify-center px-1 py-3 text-sm font-medium text-app-text transition;
+  }
+
+  .editor-tab-active {
+    @apply text-primary;
+  }
+
+  .editor-tab-underline {
+    @apply absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-primary;
+  }
+}
+
+.vue-flow__background {
+  background-color: #ffffff;
+}
+
+.vue-flow__background-pattern {
+  opacity: 1;
+}
+
+.vue-flow__controls {
+  overflow: hidden;
+  border: 1px solid #dde1e6;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(10, 77, 162, 0.08);
+}
+
+.vue-flow__controls-button {
+  background: #ffffff;
+  border-bottom-color: #dde1e6;
+  color: #1d2129;
+}
+
+.vue-flow__controls-button:hover {
+  background: #f5f7fa;
+  color: #0a4da2;
+}
+
+.vue-flow__minimap {
+  background: rgba(245, 247, 250, 0.96);
+  border: 1px solid #0a4da2;
+  border-radius: 12px;
+}
+
+.vue-flow__minimap-mask {
+  fill: rgba(10, 77, 162, 0.08);
+}
+
+.vue-flow__selection {
+  border: 1px solid rgba(10, 77, 162, 0.55);
+  background: rgba(10, 77, 162, 0.08);
+}

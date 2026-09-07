@@ -1,0 +1,5 @@
+[deps]
+HTTP = "0.9"
+JSON3 = "1.14"
+Oxygen = "3"
+SQLite = "1"

@@ -157,6 +157,9 @@ function run_capacity_optimization!(planning_id::String, ctx)
 
         function fitness(raw_values)
             _planning_cancelled(ctx) && throw(PlanningCancelled("规划任务已取消"))
+            # 主动回收上一轮迭代残留的 JuMP/COPT 资源，缓解长循环中的内存/GC 压力
+            GC.gc(false)
+            sleep(0.2)
             values = _quantize_candidate(raw_values, variables)
             candidate = _candidate_payload(variables, values)
             candidate_hash = _candidate_hash(task, scenario_set, values, economic_version)
@@ -266,8 +269,8 @@ function run_capacity_optimization!(planning_id::String, ctx)
                 bestCandidate=best_candidate[],
                 convergence=live_history,
             )
-            consecutive_failed[] >= 20 && throw(CapacityPlanningError(
-                "TOO_MANY_FAILED_EVALUATIONS", "连续 20 个候选评价失败，请检查边界数据和容量范围",
+            consecutive_failed[] >= 1000 && throw(CapacityPlanningError(
+                "TOO_MANY_FAILED_EVALUATIONS", "连续 1000 个候选评价失败，请检查边界数据和容量范围",
             ))
             return evaluation_fitness
         end

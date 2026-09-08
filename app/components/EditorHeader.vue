@@ -9,7 +9,7 @@ withDefaults(
   }>(),
   {
     logoSrc: '',
-    logoText: '发电灵活性量化评估软件',
+    logoText: '能源系统多时间尺度滚动优化平台',
     userName: 'A4Admin'
   }
 )

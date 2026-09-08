@@ -766,7 +766,7 @@ const validateTimeRange = (value: string) => {
     return false
   }
 
-  const match = /^(\d{1,2}):(\d{2})\s*[-~]\s*(\d{1,2}):(\d{2})$/.exec(trimmed)
+  const match = /^(\d+):(\d{2})\s*[-~]\s*(\d+):(\d{2})$/.exec(trimmed)
   if (!match) {
     timeRangeError.value = '格式错误，请使用 0:00-24:00 格式'
     return false

@@ -759,11 +759,15 @@ const planningLogTime = () => new Date().toLocaleTimeString('zh-CN', {
   second: '2-digit'
 })
 
+const MAX_PLANNING_LOG_ENTRIES = 30
+
 const appendPlanningLog = (item: Omit<PlanningLogItem, 'time'>) => {
   if (planningLogIds.has(item.id)) return
   planningLogIds.add(item.id)
   planningLogFeed.value.push({ ...item, time: planningLogTime() })
-  if (planningLogFeed.value.length > 80) planningLogFeed.value.splice(0, planningLogFeed.value.length - 80)
+  if (planningLogFeed.value.length > MAX_PLANNING_LOG_ENTRIES) {
+    planningLogFeed.value.splice(0, planningLogFeed.value.length - MAX_PLANNING_LOG_ENTRIES)
+  }
   void nextTick(() => {
     if (planningLogRef.value) planningLogRef.value.scrollTop = planningLogRef.value.scrollHeight
   })
@@ -2155,7 +2159,7 @@ useHead(() => ({
 
               <div class="grid grid-cols-[330px_minmax(0,1fr)] items-stretch gap-4">
                 <div class="flex min-h-0 flex-col gap-3">
-                  <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-app-border bg-white">
+                  <div class="flex min-h-0 max-h-[600px] flex-1 flex-col overflow-hidden rounded-lg border border-app-border bg-white">
                     <div class="flex items-start justify-between gap-3 border-b border-app-border px-4 py-3">
                       <div class="min-w-0">
                         <h3 class="text-sm font-semibold text-app-text">容量规划运行日志</h3>
@@ -2190,7 +2194,7 @@ useHead(() => ({
                           <span
                             class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold shadow-sm"
                             :class="entry.state === 'done' ? 'bg-emerald-500 text-white' : entry.state === 'active' ? 'planning-log-active-dot bg-blue-500 text-white' : entry.state === 'error' ? 'bg-red-500 text-white' : 'bg-gray-300 text-gray-600'"
-                          >{{ entry.state === 'done' ? '✓' : entry.state === 'active' ? '→' : entry.state === 'error' ? '!' : index + 1 }}</span>
+                          >{{ entry.state === 'done' ? '✓' : entry.state === 'active' ? 'i' : entry.state === 'error' ? '!' : index + 1 }}</span>
                           <div class="min-w-0 flex-1">
                             <div class="flex items-start justify-between gap-2">
                               <div class="font-medium" :class="entry.state === 'error' ? 'text-app-danger' : entry.state === 'pending' ? 'text-app-muted' : 'text-app-text'">{{ entry.title }}</div>

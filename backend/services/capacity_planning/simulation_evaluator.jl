@@ -156,11 +156,14 @@ function evaluate_snapshot(
                 end
                 solve_result = solve_model(
                     model, components, layer, "0:00", db_path;
-                    overlay_mode=false,
-                    persist_results=options.persist_timeseries,
+                    overlay_mode=false
                 )
                 solve_result === nothing && throw(CapacityPlanningError("INFEASIBLE", "$(scenario_id) 求解未达到最优"))
                 objective, _ = solve_result
+                # 求解完成后立即释放本轮 JuMP/COPT 模型与组件，降低连续多场景评价的内存/GC 压力
+                model = nothing
+                components = nothing
+                GC.gc(false)
                 isfinite(objective) || throw(CapacityPlanningError("NON_FINITE_OBJECTIVE", "$(scenario_id) 返回非有限目标值"))
                 weighted_objective += objective * weight_days
                 total_weight_days += weight_days
@@ -173,11 +176,14 @@ function evaluate_snapshot(
                     "feasible" => true,
                 ))
             catch error
+                bt = catch_backtrace()
+                @warn "容量规划场景评价失败" scenario_id weight_days exception=(error, bt)
                 push!(scenario_metrics, Dict{String,Any}(
                     "scenarioId" => scenario_id,
                     "weightDays" => weight_days,
                     "feasible" => false,
                     "error" => sprint(showerror, error),
+                    "backtrace" => sprint(show, bt),
                 ))
                 options.stop_on_infeasible && return _evaluation_failure(error; scenario_metrics)
             finally

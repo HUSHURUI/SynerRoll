@@ -8,8 +8,8 @@ Base.showerror(io::IO, error::CapacityPlanningError) = print(io, "$(error.code):
 
 Base.@kwdef struct EvaluationOptions
     layer_id::String = "1"
-    persist_timeseries::Bool = false
-    generate_code::Bool = false
+    persist_timeseries::Bool = true
+    generate_code::Bool = true
     stop_on_infeasible::Bool = true
 end
 

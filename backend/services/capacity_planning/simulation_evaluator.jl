@@ -113,6 +113,7 @@ function evaluate_snapshot(
     work_dir::String;
     options::EvaluationOptions=EvaluationOptions(),
     planning_id::Union{Nothing,String}=nothing,
+    optimizer_factory=nothing,
 )::EvaluationResult
     scenario_metrics = Dict{String,Any}[]
     try
@@ -150,6 +151,7 @@ function evaluate_snapshot(
                 # 默认丢弃生成的代码文本，不向候选目录写 .jl 文件。
                 model, components, generated_code = build_model_tracked(
                     component_dicts, algorithms, nodes, layer, "0:00", db_path; all_layers,
+                    optimizer_factory=optimizer_factory,
                 )
                 if options.generate_code
                     write(joinpath(scenario_dir, "model.jl"), generated_code)

@@ -9,7 +9,7 @@ withDefaults(
   }>(),
   {
     logoSrc: '',
-    logoText: '能源系统多时间尺度滚动优化平台',
+    logoText: '综合能源系统配置策略优化软件',
     userName: 'A4Admin'
   }
 )

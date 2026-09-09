@@ -38,6 +38,9 @@ const validatedAt = ref('')
 const datasetLoading = ref(false)
 const datasetError = ref('')
 const scenarioPreview = ref<ScenarioPreviewResult | null>(null)
+const sortedScenarios = computed(() =>
+  [...(scenarioPreview.value?.scenarios ?? [])].sort((a, b) => b.probability - a.probability)
+)
 const scenarioChartsNormalized = ref(false)
 const planningTask = ref<CapacityPlanningTask | null>(null)
 const planningResult = ref<CapacityPlanningResult | null>(null)
@@ -111,11 +114,11 @@ const clustering = reactive({
 })
 
 const optimizer = reactive({
-  maxFuncEvals: 20,
+  maxFuncEvals: 100,
   populationSize: 10,
-  maxTimeSeconds: 3600,
+  maxTimeSeconds: 300,
   seed: 20260828,
-  failurePenalty: 1e18
+  failurePenalty: 1e10
 })
 
 const objectiveOptions: Array<{ value: CapacityPlanObjective; label: string }> = [
@@ -393,7 +396,7 @@ const renderScenarioCharts = () => {
 
   const metadata = new Map(preview.dataset.series.map(item => [item.boundaryId, item]))
   const resolutionMinutes = preview.config.resolutionMinutes
-  preview.scenarios.forEach((scenario, scenarioIndex) => {
+  sortedScenarios.value.forEach((scenario, scenarioIndex) => {
     const element = scenarioChartElements.get(scenario.scenarioId)
     if (!element) return
 
@@ -773,6 +776,14 @@ const appendPlanningLog = (item: Omit<PlanningLogItem, 'time'>) => {
   })
 }
 
+const resetPlanningLog = () => {
+  if (planningLogSequenceTimer) clearTimeout(planningLogSequenceTimer)
+  planningLogSequenceTimer = null
+  planningLogFeed.value = []
+  planningLogIds.clear()
+  lastLoggedEvaluation = 0
+}
+
 const appendCurrentPlanningStatus = () => {
   const task = planningTask.value
   if (planningBusy.value && !task) {
@@ -843,11 +854,7 @@ const appendCurrentPlanningStatus = () => {
 }
 
 const startPlanningLogSequence = () => {
-  if (planningLogSequenceTimer) clearTimeout(planningLogSequenceTimer)
-  planningLogSequenceTimer = null
-  planningLogFeed.value = []
-  planningLogIds.clear()
-  lastLoggedEvaluation = 0
+  resetPlanningLog()
   const entries = [...planningPrerequisiteEntries.value]
   let index = 0
   const revealNext = () => {
@@ -876,6 +883,9 @@ const compactChartNumber = (value: number) => {
 const renderConvergenceChart = () => {
   if (!convergenceChartRef.value || currentStep.value !== 5) return
   if (!convergenceChart) convergenceChart = echarts.init(convergenceChartRef.value)
+  const chartOption = convergenceChart.getOption() as
+    { legend?: Array<{ selected?: Record<string, boolean> }> } | undefined
+  const legendSelected = chartOption?.legend?.[0]?.selected
   const points = liveConvergencePoints.value
   const currentFitness = points
     .filter(point => point.feasible && Number.isFinite(point.fitness))
@@ -893,7 +903,8 @@ const renderConvergenceChart = () => {
       right: 8,
       itemWidth: 14,
       itemHeight: 8,
-      textStyle: { fontSize: 10 }
+      textStyle: { fontSize: 10 },
+      selected: legendSelected
     },
     grid: { left: 54, right: 22, top: 38, bottom: 44 },
     xAxis: {
@@ -1411,6 +1422,9 @@ const startPlanningPoll = () => {
 
 const createAndStartPlanning = async () => {
   if (!canStartPlanning.value || !schema.value) return
+  clearPlanningPoll()
+  resetPlanningLog()
+  planningTask.value = null
   planningBusy.value = true
   planningError.value = ''
   planningResult.value = null
@@ -1738,15 +1752,6 @@ useHead(() => ({
             </div>
 
             <div ref="contentScroller" class="min-h-0 flex-1 overflow-y-auto bg-app-surface p-5">
-            <div v-if="errorMessage" class="mb-4 rounded-lg border border-app-danger/30 bg-red-50 px-4 py-3 text-sm text-app-danger">
-              {{ errorMessage }}
-            </div>
-            <div v-if="datasetError && currentStep >= 2 && currentStep <= 3" class="mb-4 rounded-lg border border-app-danger/30 bg-red-50 px-4 py-3 text-sm text-app-danger">
-              {{ datasetError }}
-            </div>
-            <div v-if="planningError && currentStep >= 5" class="mb-4 rounded-lg border border-app-danger/30 bg-red-50 px-4 py-3 text-sm text-app-danger">
-              {{ planningError }}
-            </div>
 
             <section v-if="currentStep === 1" class="space-y-4">
               <div v-for="warning in schema.warnings" :key="warning" class="rounded-lg border border-app-warning/30 bg-orange-50 px-4 py-3 text-sm text-app-warning">
@@ -1969,7 +1974,7 @@ useHead(() => ({
                   <h3 class="">聚类算法配置</h3>
                 </div>
                 <div class="p-5">
-                  <div class="grid grid-cols-[220px_300px_minmax(0,1fr)] items-center gap-5">
+                  <div class="grid grid-cols-[220px_300px_minmax(0,1fr)_auto] items-center gap-5">
                     <label class="flex min-w-0 items-center gap-3">
                       <span class="!mb-0 shrink-0 whitespace-nowrap">典型场景</span>
                       <input v-model.number="clustering.clusterCount" class="field-input min-w-0" type="number" min="2" max="30">
@@ -1990,9 +1995,6 @@ useHead(() => ({
                         </option>
                       </select>
                     </label>
-                  </div>
-
-                  <div class="mt-5 flex items-center justify-between">
                     <AppButton label="生成典型场景" tone="primary" :disabled="datasetLoading || !canPreviewScenarios" @click="previewTypicalDays" />
                   </div>
                 </div>
@@ -2018,7 +2020,7 @@ useHead(() => ({
                     <div class="rounded-lg bg-app-panel-soft p-3"><div class="text-xs text-app-muted">收敛状态</div><div class="mt-1 text-lg font-bold" :class="scenarioPreview.quality.converged ? 'text-app-success' : 'text-app-warning'">{{ scenarioPreview.quality.converged ? '已收敛' : '未收敛' }}</div></div>
                   </div>
                   <div class="mt-5 grid grid-cols-2 gap-4">
-                    <article v-for="(scenario, scenarioIndex) in scenarioPreview.scenarios" :key="scenario.scenarioId" class="overflow-hidden rounded-lg border border-app-border bg-white">
+                    <article v-for="(scenario, scenarioIndex) in sortedScenarios" :key="scenario.scenarioId" class="overflow-hidden rounded-lg border border-app-border bg-white">
                       <div class="flex items-center justify-between gap-4 border-b border-app-border bg-app-panel-soft px-4 py-3">
                         <div>
                           <div class="text-sm ">
@@ -2077,7 +2079,7 @@ useHead(() => ({
                   <div
                     v-for="item in technicalConstraintItems"
                     :key="item.key"
-                    class="rounded-lg border p-4 transition"
+                    class="p-4 transition shadow-md"
                     :class="objectiveSettings.technicalConstraints[item.key].enabled ? 'border-primary/40 bg-blue-50/50' : 'border-app-border bg-white'"
                   >
                     <div class="flex items-center justify-between gap-3">
@@ -2112,7 +2114,7 @@ useHead(() => ({
                   <div
                     v-for="item in economicConstraintItems"
                     :key="item.key"
-                    class="rounded-lg border p-4 transition"
+                    class="p-4 transition shadow-md"
                     :class="objectiveSettings.economicConstraints[item.key].enabled ? 'border-primary/40 bg-blue-50/50' : 'border-app-border bg-white'"
                   >
                     <div class="flex items-center justify-between gap-3">
@@ -2146,20 +2148,20 @@ useHead(() => ({
             </section>
 
             <section v-else-if="currentStep === 5" class="space-y-4">
-              <div class="rounded-lg border border-app-border bg-white px-4 py-3">
-                <div class="grid grid-cols-[repeat(5,minmax(0,1fr))_auto] items-end gap-3">
-                  <label class="block"><span class="field-label">最大评价次数</span><input v-model.number="optimizer.maxFuncEvals" class="field-input" type="number" min="2" max="10000"></label>
-                  <label class="block"><span class="field-label">种群规模</span><input v-model.number="optimizer.populationSize" class="field-input" type="number" min="2" max="500"></label>
-                  <label class="block"><span class="field-label">最长时间（秒）</span><input v-model.number="optimizer.maxTimeSeconds" class="field-input" type="number" min="1"></label>
-                  <label class="block"><span class="field-label">随机种子</span><input v-model.number="optimizer.seed" class="field-input" type="number"></label>
-                  <label class="block"><span class="field-label">失败惩罚</span><input v-model.number="optimizer.failurePenalty" class="field-input" type="number" min="1"></label>
-                  <AppButton class="mb-px whitespace-nowrap" label="创建并启动容量规划" tone="primary" :disabled="!canStartPlanning" @click="createAndStartPlanning" />
+              <div class="rounded-lg border border-app-border bg-white p-5">
+                <div class="grid grid-cols-[repeat(5,minmax(0,1fr))_auto] items-center gap-5">
+                  <label class="flex min-w-0 items-center gap-3"><span class="!mb-0 shrink-0 whitespace-nowrap">最大评价次数</span><input v-model.number="optimizer.maxFuncEvals" class="field-input min-w-0" type="number" min="2" max="10000"></label>
+                  <label class="flex min-w-0 items-center gap-3"><span class="!mb-0 shrink-0 whitespace-nowrap">种群规模</span><input v-model.number="optimizer.populationSize" class="field-input min-w-0" type="number" min="2" max="500"></label>
+                  <label class="flex min-w-0 items-center gap-3"><span class="!mb-0 shrink-0 whitespace-nowrap">最长时间（秒）</span><input v-model.number="optimizer.maxTimeSeconds" class="field-input min-w-0" type="number" min="1"></label>
+                  <label class="flex min-w-0 items-center gap-3"><span class="!mb-0 shrink-0 whitespace-nowrap">随机种子</span><input v-model.number="optimizer.seed" class="field-input min-w-0" type="number"></label>
+                  <label class="flex min-w-0 items-center gap-3"><span class="!mb-0 shrink-0 whitespace-nowrap">失败惩罚</span><input v-model.number="optimizer.failurePenalty" class="field-input min-w-0" type="number" min="1"></label>
+                  <AppButton class="whitespace-nowrap" label="启动容量规划" tone="primary" :disabled="!canStartPlanning" @click="createAndStartPlanning" />
                 </div>
               </div>
 
               <div class="grid grid-cols-[330px_minmax(0,1fr)] items-stretch gap-4">
                 <div class="flex min-h-0 flex-col gap-3">
-                  <div class="flex min-h-0 max-h-[600px] flex-1 flex-col overflow-hidden rounded-lg border border-app-border bg-white">
+                  <div class="flex h-[600px] min-h-0 flex-none flex-col overflow-hidden rounded-lg border border-app-border bg-white">
                     <div class="flex items-start justify-between gap-3 border-b border-app-border px-4 py-3">
                       <div class="min-w-0">
                         <h3 class="text-sm font-semibold text-app-text">容量规划运行日志</h3>
@@ -2431,17 +2433,6 @@ useHead(() => ({
                 />
               </div>
             </div>
-          </div>
-        </section>
-
-        <section class="p-2">
-          <div class="rounded-lg bg-app-panel-soft p-3 text-xs text-app-muted">
-            <p class="font-medium text-app-text mb-2">说明</p>
-            <ul class="space-y-1 list-disc list-inside">
-              <li>容量规划任务将保存所有的变量配置、聚类参数和优化设置</li>
-              <li>每个任务独立管理，可以创建多个任务进行对比</li>
-              <li>任务创建后可以在各步骤中修改配置并自动保存</li>
-            </ul>
           </div>
         </section>
       </div>

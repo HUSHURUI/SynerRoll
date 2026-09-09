@@ -573,14 +573,14 @@ construction_code 是可直接在顶层 scope 执行的 Julia 代码字符串。
 all_layers 为项目 layerConfig.layers，传入时用于确定 max_layer_id。
 """
 function build_model_tracked(component_dicts::Vector, algorithms::Dict{String,Any}, nodes::Vector,
-    layer::Dict{String,Any}, time::String, db_path::String; all_layers::Union{Dict{String,Any},Nothing}=nothing)
+    layer::Dict{String,Any}, time::String, db_path::String; all_layers::Union{Dict{String,Any},Nothing}=nothing, optimizer_factory=nothing)
     components = [instantiate_component(component_dict) for component_dict in component_dicts]
     max_lid = all_layers !== nothing ? parse(Int, get_max_layer_id(all_layers)) : 3
     ctx = BuildContext(layer, time, algorithms, db_path, max_lid)
     tracer = CodeTracer()
 
     # ── 模型初始化 ────────────────────────────────────────────────────
-    model = create_jump_model(algorithms)
+    model = create_jump_model(algorithms; optimizer_factory=optimizer_factory)
     record!(tracer, "# ═══════════════════════════════════════════════════════════")
     record!(tracer, "# 模型构建过程 — 自动生成")
     record!(tracer, "# 时层: $(layer["id"]) | 步长: $(layer["step"]) | 长度: $(layer["length"])")

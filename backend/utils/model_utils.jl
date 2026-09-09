@@ -7,8 +7,12 @@ end
 
 step_hours(layer::Dict{String, Any}) = time_str_divide(layer["step"], "1h")
 
-function create_jump_model(algorithms::Dict{String, Any})
-    model = Model(COPT.Optimizer)
+function create_jump_model(algorithms::Dict{String, Any}; optimizer_factory=nothing)
+    model = if optimizer_factory === nothing
+        Model(COPT.Optimizer)
+    else
+        Model(optimizer_factory)
+    end
     set_silent(model)
     return model
 end

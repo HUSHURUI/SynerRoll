@@ -273,7 +273,12 @@ function get_ts(db_path::String, data_key::String)
     store = get_store(db_path)
     source_id, var_name, remark, layer_id = _key_to_meta_params(data_key)
 
+    t0 = time()
     lock(store.write_lock) do
+        wait_s = time() - t0
+        if wait_s > 0.05
+            @warn "[LOCK] get_ts: lock wait" data_key wait_s=round(wait_s, digits=3)
+        end
         meta_rows = _query(store.db,
             "SELECT id FROM time_series_meta WHERE source_id=? AND var_name=? AND remark=? AND layer_id=?",
             [source_id, var_name, remark, layer_id])
@@ -346,8 +351,15 @@ end
 
 function set_ts(db_path::String, data_key::String, ts::TimeSeries)
     store = get_store(db_path)
+    t0 = time()
     lock(store.write_lock) do
+        t_locked = time()
+        wait_s = t_locked - t0
+        if wait_s > 0.05
+            @warn "[LOCK] set_ts: lock wait" data_key wait_s=round(wait_s, digits=3)
+        end
         _write_ts(store, data_key, ts)
+        @info "[LOCK] set_ts: write done" data_key points=length(ts.values) write_s=round(time()-t_locked, digits=3)
     end
     return nothing
 end
@@ -414,7 +426,13 @@ function query_ts(db_path::String;
 )
 
     store = get_store(db_path)
+    t0 = time()
     lock(store.write_lock) do
+        t_locked = time()
+        wait_s = t_locked - t0
+        if wait_s > 0.05
+            @warn "[LOCK] query_ts: lock wait" source_id wait_s=round(wait_s, digits=3)
+        end
         sql = "SELECT id, source_id, var_name, remark, layer_id FROM time_series_meta WHERE 1=1"
         params = String[]
         if source_id !== nothing

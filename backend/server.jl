@@ -332,13 +332,14 @@ end
 # ══════════════════════════════════════════════════════════════════════════════
 @post "/api/boundary/submit" function (req)
     try
+        t_submit_start = time()
         body = JSON3.read(req.body, Dict)
 
         project_id = require_string(body, "projectId")
         db_path = joinpath(BACKEND_DATA_DIR, "projects", project_id, "boundary.db")
 
         boundaries = get(body, "boundaries", [])
-        @info "submit received boundaries count=$(length(boundaries))"
+        @info "[SUBMIT] received boundaries count=$(length(boundaries)) db_path=$db_path"
         isempty(boundaries) && error("缺少 boundaries 数据")
 
         # 先按 source_id + remark="planned" 清除该边界的所有旧数据，
@@ -349,7 +350,9 @@ end
             isempty(bid) && continue
             bid in seen_ids && continue
             push!(seen_ids, bid)
+            t_del = time()
             delete_ts_by_source_id(db_path=db_path, source_id=bid, remark="planned")
+            @info "[SUBMIT] deleted old data" bid elapsed_s=round(time()-t_del, digits=3)
         end
 
         stored_keys = String[]
@@ -366,7 +369,9 @@ end
 
             ts = TimeSeries(convert(Vector{String}, timestamps), convert(Vector{Float64}, values))
             label = "$(boundary_id)|$(meaning)|planned#$(layer_id)"
+            t_set = time()
             set_ts(db_path, label, ts)
+            @info "[SUBMIT] set_ts done" label points=length(values) elapsed_s=round(time()-t_set, digits=3)
             push!(stored_keys, label)
         end
 
@@ -387,6 +392,8 @@ end
                 end
             end
         end
+
+        @info "[SUBMIT] total done" stored_count=length(stored_keys) total_s=round(time()-t_submit_start, digits=3)
 
         return json_success(
             data=Dict("storedKeys" => stored_keys),

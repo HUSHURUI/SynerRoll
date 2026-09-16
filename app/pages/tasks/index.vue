@@ -803,7 +803,7 @@ const validateTimeRange = (value: string) => {
 
 // 解析结束时间的小时数
 const parsedEndHour = computed(() => {
-  const match = /^(\d{1,2}):(\d{2})\s*[-~]\s*(\d{1,2}):(\d{2})$/.exec(timeRange.value.trim())
+  const match = /^(\d+):(\d{2})\s*[-~]\s*(\d+):(\d{2})$/.exec(timeRange.value.trim())
   if (!match) return 24
   return parseInt(match[3], 10)
 })

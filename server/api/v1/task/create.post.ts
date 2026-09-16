@@ -14,6 +14,9 @@ export default defineEventHandler(async (event) => {
 
   // 从项目存储读取完整项目数据（含画布、时层配置等）
   const project = await readProjectById(body.projectId)
+  const projectJsonStr = JSON.stringify(project)
+  const boundaryJsonStr = JSON.stringify(project.boundaries ?? [])
+  console.log(`[TASK-CREATE] project JSON: ${(projectJsonStr.length / 1024).toFixed(1)} KB, boundaries: ${(boundaryJsonStr.length / 1024).toFixed(1)} KB`)
 
   try {
     const response = await $fetch<{

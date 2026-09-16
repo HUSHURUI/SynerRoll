@@ -25,7 +25,25 @@ const buildSeedProjects = (): Project[] =>
 
 const writeProjectsUnlocked = async (projects: Project[]): Promise<void> => {
   await mkdir(dataDirectory, { recursive: true })
-  await writeFile(dataFile, JSON.stringify(projects, null, 2), 'utf8')
+  const jsonStr = JSON.stringify(projects, null, 2)
+  console.log(`[STORE] writing projects.json: ${(jsonStr.length / 1024).toFixed(1)} KB, projects=${projects.length}`)
+  for (const p of projects) {
+    const boundaryBytes = JSON.stringify(p.boundaries ?? []).length
+    if (boundaryBytes > 10000) {
+      console.log(`[STORE]   project ${p.id} boundaries JSON: ${(boundaryBytes / 1024).toFixed(1)} KB, count=${(p.boundaries ?? []).length}`)
+      for (const b of (p.boundaries ?? [])) {
+        const bAny = b as any
+        const rawLen = bAny.rawData?.values?.length ?? 0
+        const transLayers = bAny.transformedData?.layers ?? []
+        if (rawLen > 100 || transLayers.length > 0) {
+          const transPoints = transLayers.reduce((s: number, l: any) => s + (l.values?.length ?? 0), 0)
+          console.log(`[STORE]     boundary ${b.id} rawData=${rawLen}pts transformedData=${transPoints}pts layers=${transLayers.length}`)
+        }
+      }
+    }
+  }
+  await writeFile(dataFile, jsonStr, 'utf8')
+  console.log(`[STORE] projects.json written OK`)
 }
 
 // 确保某项目的 boundary 时序库文件存在（空文件即可，Julia 后端打开时会自动建表）

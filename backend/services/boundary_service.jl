@@ -469,7 +469,12 @@ function delete_ts_by_source_id(;
     remark !== nothing && (push!(where_clauses, "remark=?"); push!(params, remark))
     where_sql = join(where_clauses, " AND ")
 
+    t0 = time()
     lock(store.write_lock) do
+        wait_s = time() - t0
+        if wait_s > 0.05
+            @warn "[LOCK] delete_ts_by_source_id: lock wait" source_id wait_s=round(wait_s, digits=3)
+        end
         # 1) 先把命中的 series_id 都查出来
         rows = _query(store.db,
             "SELECT id FROM time_series_meta WHERE $where_sql", params)
@@ -591,10 +596,12 @@ function seed_task_boundary_data(
                 end
             else
                 # 没有仿真时间范围时，复制一倍：防止滚动优化越界（如24h层用到25:00~47:00的边界数据）
+                original_count = length(sorted_ts)
                 extended_ts = vcat(sorted_ts, [minutes_to_time_label(time_label_to_minutes(t) + 24 * 60) for t in sorted_ts])
                 extended_vals = vcat(sorted_vals, sorted_vals)
                 sorted_ts = extended_ts
                 sorted_vals = extended_vals
+                @info "[SEED] doubled boundary (no sim range)" source_id var_name original=original_count doubled=length(sorted_ts)
             end
 
             ts = TimeSeries(sorted_ts, sorted_vals)
@@ -604,6 +611,9 @@ function seed_task_boundary_data(
 
         isempty(pairs) && return 0
 
+        @info "[SEED] writing boundary to task DB" n_series=length(pairs) dst_path=dst_path
+        t_seed_start = time()
+
         # 批量写入：单次 lock + 单个事务，避免 N 次加锁/开事务
         store = get_store(dst_path)
         lock(store.write_lock) do
@@ -611,6 +621,7 @@ function seed_task_boundary_data(
                 _write_ts(store, label, ts)
             end
         end
+        @info "[SEED] boundary seed done" n_series=length(pairs) elapsed_s=round(time()-t_seed_start, digits=3)
         return length(pairs)
     finally
         close(src_db)
